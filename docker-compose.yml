@@ -1,0 +1,46 @@
+---
+services:
+  postgres:
+    image: postgres:16
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: shop
+      POSTGRES_USER: backend
+      POSTGRES_PASSWORD: "pass"
+      PGDATA: /var/lib/postgresql/data/
+    volumes:
+      - postgres-storage:/var/lib/postgresql/
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}'" ]
+      interval: 1m
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+    volumes:
+      - datastore:/data
+    environment:
+      - "MINIO_ACCESS_KEY=minio"
+      - "MINIO_SECRET_KEY=minio123"
+    command: server /data
+
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 minio minio123;
+      /usr/bin/mc mb myminio/catalog;
+      exit 0;
+      "
+
+
+volumes:
+  postgres-storage:
+  datastore:
