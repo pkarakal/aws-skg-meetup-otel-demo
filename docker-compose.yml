@@ -40,7 +40,84 @@ services:
       exit 0;
       "
 
+  redis:
+    image: redis:7.4.0-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "15672:15672"
+    volumes:
+      - rabbitmq-storage:/var/lib/rabbitmq
+
+  otel-collector:
+    networks:
+      - demo
+    image: otel/opentelemetry-collector-contrib:latest
+    volumes:
+      - "./telemetry/otel-collector-config.yml:/etc/otelcol/otel-collector-config.yml"
+    command: --config /etc/otelcol/otel-collector-config.yml
+    ports:
+      - "14278:14278"
+      - "65535:65535"
+      - "55677:55677"
+      - "12345:12345"
+      - "1888:1888"   # pprof extension
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+      - "55679:55679" # zpages extension
+      - "4317:4317"   # OTLP receiver
+      - "4318:4318"
+
+  prometheus:
+    container_name: prometheus
+    networks:
+      - demo
+    image: prom/prometheus:latest
+    volumes:
+      - "./telemetry/prometheus.yml:/etc/prometheus/prometheus.yml"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-remote-write-receiver"
+    ports:
+      - "9090:9090"
+
+  jaeger:
+    container_name: jaeger
+    image: jaegertracing/all-in-one:latest
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - demo
+    ports:
+      - "16686:16686"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "14269:14269"
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana-oss:latest
+    networks:
+      - demo
+    ports:
+      - "3000:3000"
+    volumes:
+      - "grafana-storage:/var/lib/grafana"
 
 volumes:
   postgres-storage:
   datastore:
+  redis-data:
+  rabbitmq-storage:
+  grafana-storage:
+
+networks:
+  demo:
