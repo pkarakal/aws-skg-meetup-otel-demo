@@ -1,0 +1,13 @@
+port: 8080
+redis:
+  server: localhost
+  port: 6379
+  useTLS: false
+  auth:
+    username: default
+    password: "lalala"
+telemetry:
+  enabled: true
+  collector_url: localhost
+  collector_port: 4317
+
