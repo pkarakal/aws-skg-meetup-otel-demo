@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel/propagation"
 	"os"
 	"sync"
 	"time"
@@ -158,6 +159,7 @@ func (p *OTELProvider) initSDK() error {
 	// override global providers
 	otel.SetMeterProvider(meterProvider)
 	otel.SetTracerProvider(traceProvider)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
 	p.tracer = traceProvider
 	p.meter = meterProvider
