@@ -52,6 +52,10 @@ services:
     image: rabbitmq:3.13-management
     ports:
       - "15672:15672"
+      - "5672:5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: "admin"
+      RABBITMQ_DEFAULT_PASS: "admin"
     volumes:
       - rabbitmq-storage:/var/lib/rabbitmq
 
