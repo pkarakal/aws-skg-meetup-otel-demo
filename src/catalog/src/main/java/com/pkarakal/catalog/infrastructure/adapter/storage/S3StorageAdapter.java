@@ -14,6 +14,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
 import software.amazon.awssdk.transfer.s3.model.Upload;
@@ -23,8 +25,10 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -34,6 +38,7 @@ public class S3StorageAdapter implements StorageRepository {
     private final ExecutorService executorService;
     private S3TransferManager s3TransferManager;
     private final S3AsyncClient s3Client;
+    private final S3Presigner s3Presigner;
 
     private final boolean isMinioEnabled;
 
@@ -48,13 +53,15 @@ public class S3StorageAdapter implements StorageRepository {
     public S3StorageAdapter(
             S3AsyncClient s3Client,
             @Value("${minio.enabled}") boolean isMinioEnabled,
-            @Value("${minio.url}") String minioUrl
+            @Value("${minio.url}") String minioUrl,
+            S3Presigner s3Presigner
     ) {
         this.s3Client = s3Client;
         this.s3TransferManager = S3TransferManager.builder().s3Client(s3Client).build();
         this.isMinioEnabled = isMinioEnabled;
         this.minioUrl = minioUrl;
         this.executorService = Executors.newFixedThreadPool(10);
+        this.s3Presigner = s3Presigner;
     }
 
     @Override
@@ -69,12 +76,6 @@ public class S3StorageAdapter implements StorageRepository {
                 .key(fileName)
                 .contentType(file.getContentType())
                 .build();
-//        UploadFileRequest req = UploadFileRequest.builder()
-//                .putObjectRequest(putObjectRequest)
-//                .source(AsyncRequestBody.fromInputStream(file.getInputStream(), file.getSize(), s3Client))
-//                .build();
-//        FileUpload upload = s3TransferManager.uploadFile(req);
-//        upload.completionFuture().join();
         PutObjectResponse putObjectResponse = s3Client.putObject(putObjectRequest, AsyncRequestBody.fromBytes(file.getBytes())).join();
 
         if (!putObjectResponse.sdkHttpResponse().isSuccessful()) {
@@ -103,5 +104,20 @@ public class S3StorageAdapter implements StorageRepository {
         }
         logger.info("Successfully loaded file {}", filename);
         return filename;
+    }
+
+    @Override
+    public URL generateSignedURL(String filename) {
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(filename)
+                .build();
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .getObjectRequest(getObjectRequest)
+                .signatureDuration(Duration.ofHours(10)) // Customize URL expiry duration
+                .build();
+
+        return s3Presigner.presignGetObject(presignRequest).url();
     }
 }

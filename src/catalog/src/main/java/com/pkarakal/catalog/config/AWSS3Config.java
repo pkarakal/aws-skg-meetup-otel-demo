@@ -15,6 +15,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 import java.net.URI;
@@ -47,7 +48,7 @@ public class AWSS3Config {
     @Bean
     public S3AsyncClient s3Client() {
         if (minioEnabled) {
-            var client =  S3AsyncClient.builder()
+            var client = S3AsyncClient.builder()
                     .endpointOverride(URI.create(minioUrl))
                     .credentialsProvider(StaticCredentialsProvider.create(
                             AwsBasicCredentials.create(minioAccessKey, minioSecretKey)))
@@ -71,5 +72,21 @@ public class AWSS3Config {
         return S3AsyncClient.builder()
                 .region(Region.of(awsRegion))
                 .build();
+    }
+
+    @Bean
+    public S3Presigner s3Presigner() {
+        return minioEnabled ? S3Presigner.builder()
+                .endpointOverride(URI.create(minioUrl))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(minioAccessKey, minioSecretKey)))
+                .region(Region.EU_WEST_1)
+                .serviceConfiguration(S3Configuration.builder()
+                        .pathStyleAccessEnabled(true)
+                        .build())
+                .build() :
+                S3Presigner.builder()
+                        .region(Region.of(awsRegion))
+                        .build();
     }
 }
