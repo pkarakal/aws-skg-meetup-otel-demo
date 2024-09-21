@@ -1,0 +1,28 @@
+port: 8082
+
+catalog:
+  protocol: http
+  server: localhost
+  port: 8080
+  path: ""
+  timeout: 3
+
+cart:
+  protocol: http
+  server: localhost
+  port: 8081
+  path: "/api/v1"
+  timeout: 3
+
+rabbitmq:
+  host: localhost
+  port: 5672
+  username: admin
+  password: admin
+  exchange: inventory_update
+
+telemetry:
+  enabled: true
+  collector_url: localhost
+  collector_port: 4317
+
