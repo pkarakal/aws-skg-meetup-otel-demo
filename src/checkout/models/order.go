@@ -20,4 +20,5 @@ type CreditCard struct {
 	CardCvv             int32  `json:"card_cvv"`
 	CardExpirationMonth int32  `json:"card_expiration_month"`
 	CardExpirationYear  int32  `json:"card_expiration_year"`
+	CardOwner           string `json:"card_owner"`
 }
