@@ -6,8 +6,6 @@ import {useCartStore} from '@/stores/cart';
 import {Button} from '@/components/ui/button';
 import {CheckoutFormData, checkoutSchema} from "@/types/schemas";
 import {Form} from "@/components/ui/form";
-import {Order} from "@/types/order";
-import { v4 as uuidv4 } from 'uuid';
 import {AddressCardComponent} from "@/components/AddressCard";
 import {PaymentInfoComponent} from "@/components/PaymentInfoCard";
 import {CartTotalComponent} from "@/components/CartTotalComponent";

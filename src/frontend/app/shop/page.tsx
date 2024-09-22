@@ -4,11 +4,8 @@ import React from 'react';
 import {ProductCard} from '@/components/product/product-card';
 import { trace } from "@opentelemetry/api";
 
-interface ShopProps {
-    products: Products;
-}
 
-const Shop: React.FC<ShopProps> = async () => {
+const Shop: React.FC = async () => {
     const {CATALOG_SERVICE_ADDR} = process.env;
     const res = await fetch(`${CATALOG_SERVICE_ADDR}/products`);
     const products: Products = await res.json();
