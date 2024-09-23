@@ -40,6 +40,7 @@ dependencies {
 	implementation 'org.springframework.modulith:spring-modulith-starter-core'
 	implementation 'software.amazon.awssdk:s3'
 	implementation 'software.amazon.awssdk:s3-transfer-manager'
+	implementation 'software.amazon.awssdk:sts'
 	runtimeOnly 'org.postgresql:postgresql'
 	runtimeOnly 'org.springframework.modulith:spring-modulith-events-amqp'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

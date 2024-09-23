@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-cart
+  namespace: {{ .Values.namespace }}   # Use the namespace from values.yaml
+spec:
+  replicas: {{ .Values.cart.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-cart
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-cart
+    spec:
+      serviceAccountName: {{ .Release.Name }}-cart-sa
+      containers:
+        - name: cart
+          image: {{ .Values.cart.image.repository }}:{{ .Values.cart.image.tag }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/cart
+          resources:
+            limits:
+              cpu: {{ .Values.cart.resources.limits.cpu }}
+              memory: {{ .Values.cart.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.cart.resources.requests.cpu }}
+              memory: {{ .Values.cart.resources.requests.memory }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Release.Name }}-cart-config
+            items:
+              - key: config.yml
+                path: config.yml

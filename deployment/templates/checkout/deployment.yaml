@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-checkout
+  namespace: {{ .Values.namespace }}   # Use the namespace from values.yaml
+spec:
+  replicas: {{ .Values.checkout.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-checkout
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-checkout
+    spec:
+      serviceAccountName: {{ .Release.Name }}-checkout-sa
+      containers:
+        - name: checkout
+          image: {{ .Values.checkout.image.repository }}:{{ .Values.checkout.image.tag }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/checkout
+          env:
+            - name: RABBITMQ_PORT
+              value: "5672"
+          resources:
+            limits:
+              cpu: {{ .Values.checkout.resources.limits.cpu }}
+              memory: {{ .Values.checkout.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.checkout.resources.requests.cpu }}
+              memory: {{ .Values.checkout.resources.requests.memory }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Release.Name }}-checkout-config
+            items:
+              - key: config.yml
+                path: config.yml

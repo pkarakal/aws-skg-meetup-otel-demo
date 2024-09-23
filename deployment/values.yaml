@@ -1,0 +1,89 @@
+# Default values for deployment.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+namespace: otel-demo
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+
+
+cart:
+  serviceAccount:
+    create: true
+    automount: true
+    annotations: { }
+    name: "cart-service-sa"
+
+  replicaCount: 1
+  image:
+    repository: 436025701244.dkr.ecr.eu-west-1.amazonaws.com/cart
+    tag: latest
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+checkout:
+  serviceAccount:
+    create: true
+    automount: true
+    annotations: { }
+    name: "checkout-service-sa"
+
+  replicaCount: 1
+  image:
+    repository: 436025701244.dkr.ecr.eu-west-1.amazonaws.com/checkout
+    tag: latest
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+catalog:
+  serviceAccount:
+    create: true
+    automount: true
+    annotations: { }
+    name: "catalog-service-sa"
+    role: arn:aws:iam::436025701244:role/CatalogRole
+
+  replicaCount: 1
+  image:
+    repository: 436025701244.dkr.ecr.eu-west-1.amazonaws.com/catalog
+    tag: latest
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+frontend:
+  serviceAccount:
+    create: true
+    automount: true
+    annotations: { }
+    name: "frontend-service-sa"
+  replicaCount: 1
+  image:
+    repository: 436025701244.dkr.ecr.eu-west-1.amazonaws.com/frontend
+    tag: latest
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+

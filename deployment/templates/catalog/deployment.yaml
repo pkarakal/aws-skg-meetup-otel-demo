@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-catalog
+  namespace: {{ .Values.namespace }}   # Use the namespace from values.yaml
+spec:
+  replicas: {{ .Values.catalog.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-catalog
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-catalog
+    spec:
+      serviceAccountName: {{ .Release.Name }}-catalog-sa
+      containers:
+        - name: catalog
+          image: {{ .Values.catalog.image.repository }}:{{ .Values.catalog.image.tag }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /usr/src/app/application-aws.properties
+              subPath: application-aws.properties
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: aws
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://opentelemetry-demo-otelcol:4317
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: grpc
+          resources:
+            limits:
+              cpu: {{ .Values.catalog.resources.limits.cpu }}
+              memory: {{ .Values.catalog.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.catalog.resources.requests.cpu }}
+              memory: {{ .Values.catalog.resources.requests.memory }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ .Release.Name }}-catalog-config
+            items:
+              - key: application-aws.properties
+                path: application-aws.properties
