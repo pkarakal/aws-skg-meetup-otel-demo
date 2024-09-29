@@ -6,12 +6,7 @@ import {Button} from '@/components/ui/button';
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
 
 export const CartComponent: React.FC = () => {
-    const {cart, incrementCartItem, decrementCartItem, clearCart, cartUrl, setCartUrl} = useCartStore();
-
-    if (!cartUrl || cartUrl == '') {
-        const {NEXT_PUBLIC_CART_SERVICE_ADDR} = process.env;
-        setCartUrl(NEXT_PUBLIC_CART_SERVICE_ADDR);
-    }
+    const {cart, incrementCartItem, decrementCartItem, clearCart} = useCartStore();
 
     const total = cart.reduce(
         (sum, item) => sum + item.price * item.quantity,

@@ -1,18 +1,17 @@
 import {create} from 'zustand'
 import {persist} from 'zustand/middleware';
-import {CartItem, CartItems, Product} from "@/types/product";
+import {CartItems, Product} from "@/types/product";
+import {Cart} from "@/types/cart";
 
 interface CartState {
     cart: CartItems;
     cartId: string | null;
-    cartUrl?: string;
     createCart: () => Promise<void>;
     addToCart: (product: Product) => Promise<void>;
     removeFromCart: (productId: number) => Promise<void>;
     incrementCartItem: (productId: number) => Promise<void>;
     decrementCartItem: (productId: number) => Promise<void>;
     clearCart: () => Promise<void>;
-    setCartUrl: (cart?: string) => void
 }
 
 export const useCartStore = create<CartState>()(
@@ -22,20 +21,19 @@ export const useCartStore = create<CartState>()(
             cartUrl: undefined,
 
             createCart: async () => {
-                const {cartUrl, setCartUrl} = useCartStore.getState();
-                const {CART_SERVICE_ADDR} = process.env;
-                if (!cartUrl || cartUrl === '') {
-                    setCartUrl(CART_SERVICE_ADDR);
+                const {cartId} = useCartStore.getState();
+                if (cartId){
+                    return
                 }
                 try {
-                    const response = await fetch(`${cartUrl}/api/v1/cart`, {
+                    const response = await fetch(`/api/cart`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
                     });
-                    const data = await response.json();
-                    set({cartId: data.id, cart: []});
+                    const data = await response.json() as Cart;
+                    set({cartId: data.id.toString(), cart: []});
                 } catch (e) {
                     console.error(e);
                     return Promise.reject(e);
@@ -43,12 +41,12 @@ export const useCartStore = create<CartState>()(
             },
 
             addToCart: async (product: Product) => {
-                const {cartId, createCart, cartUrl} = useCartStore.getState();
+                const {cartId, createCart} = useCartStore.getState();
                 if (!cartId) {
                     await createCart();
                 }
                 try {
-                    await fetch(`${cartUrl}/api/v1/cart/${cartId}`, {
+                    await fetch(`/api/cart/${cartId}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -83,12 +81,12 @@ export const useCartStore = create<CartState>()(
             },
 
             incrementCartItem: async (productId: number) => {
-                const {cartId, cart, cartUrl} = useCartStore.getState();
+                const {cartId, cart} = useCartStore.getState();
                 if (!cartId) {
                     return Promise.reject();
                 }
                 try {
-                    const res = await fetch(`${cartUrl}/api/v1/cart/${cartId}`, {
+                    const res = await fetch(`/api/cart/${cartId}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -110,13 +108,13 @@ export const useCartStore = create<CartState>()(
             },
 
             decrementCartItem: async (productId: number) => {
-                const {cartId, cart, cartUrl} = useCartStore.getState();
+                const {cartId, cart} = useCartStore.getState();
                 if (!cartId) {
                     return Promise.reject()
                 }
                 const item = cart.filter(x => x.product_id === productId);
                 let body = {...item[0], product_id: productId, quantity: item[0].quantity - 1};
-                await fetch(`${cartUrl}/api/v1/cart/${cartId}`, {
+                await fetch(`/api/cart/${cartId}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -142,13 +140,13 @@ export const useCartStore = create<CartState>()(
             },
 
             removeFromCart: async (productId: number) => {
-                const {cartId, cartUrl, cart} = useCartStore.getState();
+                const {cartId, cart} = useCartStore.getState();
                 if (!cartId) {
                     return Promise.reject()
                 }
                 const item = cart.filter(x => x.product_id === productId);
                 const body = {...item[0], quantity: 0}
-                await fetch(`${cartUrl}/api/v1/cart/${cartId}`, {
+                await fetch(`/api/cart/${cartId}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -159,18 +157,15 @@ export const useCartStore = create<CartState>()(
             },
             clearCart: async () => {
                 set({cart: []})
-                const {cartId, cartUrl} = useCartStore.getState();
+                const {cartId} = useCartStore.getState();
                 if (cartId) {
-                    await fetch(`${cartUrl}/api/v1/cart/${cartId}/empty`, {
+                    await fetch(`/api/cart/${cartId}/empty`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         }
                     })
                 }
-            },
-            setCartUrl: (cart?: string) => {
-                set((state) => ({cartUrl: cart}));
             }
         }),
         {

@@ -22,7 +22,7 @@ export const Navbar: React.FC = () => {
             <div className="container mx-auto px-4 flex items-center justify-between h-16">
                 <div className="flex-shrink-0">
                     <Link href="/" passHref>
-                        <div className="text-xl font-bold text-gray-900">Telescope Shop</div>
+                        <div className="text-xl font-bold">Telescope Shop</div>
                     </Link>
                 </div>
                 <div className="flex space-x-4">
@@ -32,7 +32,7 @@ export const Navbar: React.FC = () => {
                                 <Link href={item.href} passHref>
                                     <NavigationMenuLink
                                         className={cn(
-                                            'px-3 py-2 rounded-md text-sm font-medium', 'text-gray-700 hover:text-gray-900'
+                                            'px-3 py-2 rounded-md text-sm font-medium'
                                         )}
                                     >
                                         {item.name}

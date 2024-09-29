@@ -30,6 +30,9 @@ const {
 
 
 const nextConfig = {
+    experimental: {
+        optimizeCss: true
+    },
     env: {
         CATALOG_SERVICE_ADDR,
         CART_SERVICE_ADDR,

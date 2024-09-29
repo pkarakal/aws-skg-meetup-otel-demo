@@ -1,14 +1,28 @@
+import type {GetServerSideProps, InferGetServerSidePropsType} from 'next'
+import React from 'react';
+import CatalogGateway from '@/services/catalog'
+import {ProductCard} from '@/components/product/product-card';
 import {Products} from "@/types/product";
 
-import React from 'react';
-import {ProductCard} from '@/components/product/product-card';
-import { trace } from "@opentelemetry/api";
+// type ShopProps = {
+//     products: Products
+// }
+//
+// export const getServerSideProps = (async() => {
+//     try {
+//         const data = await CatalogGateway.getProducts()
+//         return {props: {products: data}}
+//     } catch (e) {
+//         console.log("Failed to fetch products")
+//         return {props: {products: []}};
+//     }
+// }) satisfies GetServerSideProps<ShopProps>
 
+export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 const Shop: React.FC = async () => {
-    const {CATALOG_SERVICE_ADDR} = process.env;
-    const res = await fetch(`${CATALOG_SERVICE_ADDR}/products`);
-    const products: Products = await res.json();
+    const products = await CatalogGateway.getProducts();
 
     return (
         <div className="container mx-auto py-2">
