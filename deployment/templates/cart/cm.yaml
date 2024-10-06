@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-cart-config
+  namespace: {{.Values.namespace}}
+data:
+  config.yml: |
+    port: "8081"
+    redis:
+      server: redis-master.otel-demo
+      port: 6379
+      useTLS: false
+      auth:
+        username: default
+        password: "aRUEHUyavd"
+    telemetry:
+      enabled: "true"
+      collector_url: "opentelemetry-demo-otelcol"
+      collector_port: "4317"

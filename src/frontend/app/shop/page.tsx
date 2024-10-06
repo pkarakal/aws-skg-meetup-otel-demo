@@ -4,22 +4,9 @@ import CatalogGateway from '@/services/catalog'
 import {ProductCard} from '@/components/product/product-card';
 import {Products} from "@/types/product";
 
-// type ShopProps = {
-//     products: Products
-// }
-//
-// export const getServerSideProps = (async() => {
-//     try {
-//         const data = await CatalogGateway.getProducts()
-//         return {props: {products: data}}
-//     } catch (e) {
-//         console.log("Failed to fetch products")
-//         return {props: {products: []}};
-//     }
-// }) satisfies GetServerSideProps<ShopProps>
-
 export const revalidate = 60;
 export const dynamic = 'force-dynamic';
+
 
 const Shop: React.FC = async () => {
     const products = await CatalogGateway.getProducts();

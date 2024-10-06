@@ -1,0 +1,52 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  namespace: {{ .Values.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: "alb"
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/enable-waf-fallback: "false"
+    alb.ingress.kubernetes.io/enable-ipv6: "false"
+    alb.ingress.kubernetes.io/load-balancer-attributes: "access_logs.s3.enabled=false"
+    alb.ingress.kubernetes.io/forwarded-values: '{"headers": ["X-Amzn-Trace-Id", "X-B3-TraceId", "X-B3-SpanId", "X-B3-Sampled", "traceparent"]}'
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /products
+            pathType: Prefix
+            backend:
+              service:
+                name: {{.Release.Name}}-catalog
+                port:
+                  number: 80
+          - path: /api/v1/cart
+            pathType: Prefix
+            backend:
+              service:
+                name: {{.Release.Name}}-cart
+                port:
+                  number: 80
+          - path: /api/v1/checkout
+            pathType: Prefix
+            backend:
+              service:
+                name: {{.Release.Name}}-checkout
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-frontend
+                port:
+                  number: 80
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: opentelemetry-demo-grafana
+                port:
+                  number: 80

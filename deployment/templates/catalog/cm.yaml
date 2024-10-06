@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-catalog-config
+  namespace: {{.Values.namespace}}
+data:
+  application-aws.properties: |
+    spring.datasource.url=jdbc:postgresql://postgresql.otel-demo:5432/shop?useUnicode=yes&characterEncoding=UTF-8&serverTimezone=UTC
+    cloud.aws.region.static=eu-west-1
+    cloud.aws.s3.bucket-name=aws-skg-otel-demo-catalog-pkarakal
+    minio.enabled=false
+    spring.rabbitmq.host=rabbitmq.otel-demo
+    spring.rabbitmq.username=default_user_12RrN5uEezynHe88C5X
+    spring.rabbitmq.password=OyUyPcH1wxtAJotqH4nwpO4MQhTHieMn
+    minio.url=http://localhost:9000
+    minio.access-key=minio
+    minio.secret-key=minio123
