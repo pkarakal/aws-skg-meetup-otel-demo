@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Payment Service - Mock payment processing API
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: python3.14
+    Architectures:
+      - x86_64
+
+Resources:
+  PaymentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: main.handler
+      CodeUri: .
+      Description: Payment processing Lambda function
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:184161586896:layer:opentelemetry-python-0_13_0:1
+        - !Sub arn:aws:lambda:${AWS::Region}:184161586896:layer:opentelemetry-collector-amd64-0_13_0:1
+      Events:
+        PaymentApi:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        RootApi:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
+          OTEL_SERVICE_NAME: payment-service
+          OTEL_PROPAGATORS: tracecontext,baggage
+          OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: urllib3
+    Metadata:
+      BuildMethod: python3.14
+
+Outputs:
+  PaymentApi:
+    Description: API Gateway endpoint URL for the Payment function
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  PaymentFunction:
+    Description: Payment Lambda Function ARN
+    Value: !GetAtt PaymentFunction.Arn
+  PaymentFunctionIamRole:
+    Description: Implicit IAM Role created for Payment function
+    Value: !GetAtt PaymentFunctionRole.Arn
