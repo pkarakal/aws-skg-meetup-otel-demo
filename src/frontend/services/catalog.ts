@@ -19,8 +19,8 @@ const CatalogGateway = () => ({
                     });
                     return await response.json() as Products
                 } catch (e) {
-                    console.error("Failed to get all products")
-                    return Promise.reject()
+                    console.error("Failed to get all products", e)
+                    return [] as Products
                 }
                 finally {
                     span.end();

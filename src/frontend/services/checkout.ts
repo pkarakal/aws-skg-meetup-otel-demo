@@ -17,6 +17,12 @@ const CheckoutGateway = () => ({
                         },
                         body: JSON.stringify(order)
                     });
+                } catch (e) {
+                    console.error("Failed to place order", e)
+                    return new Response(JSON.stringify({ error: "Checkout service unavailable" }), {
+                        status: 503,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
                 } finally {
                     span.end()
                 }
