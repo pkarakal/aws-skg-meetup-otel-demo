@@ -8,7 +8,7 @@ export const revalidate = 60;
 export const dynamic = 'force-dynamic';
 
 
-const Shop: React.FC = async () => {
+const Shop = async () => {
     const products = await CatalogGateway.getProducts();
 
     return (

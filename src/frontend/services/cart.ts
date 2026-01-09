@@ -19,8 +19,8 @@ const CartGateway = () => ({
                     })
                     return await response.json() as Cart
                 } catch (err) {
-                    console.error("Failed to create a new cart")
-                    return Promise.reject();
+                    console.error("Failed to create a new cart", err)
+                    return { id: 0, items: null, total: 0 } as Cart
                 } finally {
                     span.end()
                 }
@@ -38,6 +38,9 @@ const CartGateway = () => ({
                         }
                     });
                     return await response.json() as Cart
+                } catch (err) {
+                    console.error("Failed to get cart", err)
+                    return { id: 0, items: null, total: 0 } as Cart
                 } finally {
                     span.end()
                 }
@@ -57,8 +60,8 @@ const CartGateway = () => ({
                     });
                     return await response.json() as Cart
                 } catch (e) {
-                    console.error("Failed to add item to cart")
-                    return Promise.reject()
+                    console.error("Failed to add item to cart", e)
+                    return { id: 0, items: null, total: 0 } as Cart
                 }
                 finally {
                     span.end()
@@ -78,8 +81,8 @@ const CartGateway = () => ({
                     });
                     return await response.json() as Cart
                 } catch (e) {
-                    console.error("Failed to empty cart")
-                    return Promise.reject()
+                    console.error("Failed to empty cart", e)
+                    return { id: 0, items: null, total: 0 } as Cart
                 }
                 finally {
                     span.end()
