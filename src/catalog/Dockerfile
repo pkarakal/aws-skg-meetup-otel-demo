@@ -1,4 +1,4 @@
-FROM amazoncorretto:22-jdk as builder
+FROM amazoncorretto:25-al2023-jdk as builder
 
 WORKDIR /usr/src/app/
 
@@ -12,15 +12,15 @@ COPY . .
 RUN ./gradlew clean build -x test --no-daemon
 
 
-FROM amazoncorretto:22-headless as final
+FROM amazoncorretto:25-headless as final
 WORKDIR /usr/src/app/
 COPY --from=builder /usr/src/app/build/libs/*.jar ./
 
-ARG version=2.8.0
+ARG version=2.23.0
 ADD --chmod=644 https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v$version/opentelemetry-javaagent.jar /usr/src/app/opentelemetry-javaagent.jar
 ENV JAVA_TOOL_OPTIONS=-javaagent:/usr/src/app/opentelemetry-javaagent.jar
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "/usr/src/app/catalog-0.0.1-SNAPSHOT.jar"]
+ENTRYPOINT ["java", "-jar", "/usr/src/app/catalog-0.2.0-SNAPSHOT.jar"]

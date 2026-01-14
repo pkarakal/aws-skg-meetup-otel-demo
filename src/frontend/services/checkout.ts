@@ -6,7 +6,7 @@ const { CHECKOUT_SERVICE_ADDR = '' } = process.env;
 
 const CheckoutGateway = () => ({
     placeOrder: async (order: Order, cartId: string | string[] | undefined) => {
-        return await trace
+        return trace
             .getTracer("fronted.checkout.gateway")
             .startActiveSpan("postPlaceOrder", async (span) => {
                 try {

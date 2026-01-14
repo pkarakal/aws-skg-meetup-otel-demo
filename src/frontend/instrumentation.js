@@ -1,13 +1,13 @@
-const opentelemetry = require('@opentelemetry/sdk-node');
-const {getNodeAutoInstrumentations} = require('@opentelemetry/auto-instrumentations-node');
-const {OTLPTraceExporter} = require('@opentelemetry/exporter-trace-otlp-grpc');
-const {awsEc2Detector, awsEksDetector} = require('@opentelemetry/resource-detector-aws');
-const {containerDetector} = require('@opentelemetry/resource-detector-container');
-const {envDetector, hostDetector, osDetector, processDetector} = require('@opentelemetry/resources');
+import {NodeSDK} from '@opentelemetry/sdk-node';
+import {getNodeAutoInstrumentations}  from '@opentelemetry/auto-instrumentations-node';
+import {OTLPTraceExporter} from '@opentelemetry/exporter-trace-otlp-grpc';
+import {awsEc2Detector, awsEksDetector} from '@opentelemetry/resource-detector-aws';
+import {containerDetector} from '@opentelemetry/resource-detector-container';
+import {envDetector, hostDetector, osDetector, processDetector} from '@opentelemetry/resources';
 
 const {OTEL_EXPORTER_OTLP_ENDPOINT} = process.env
 
-const sdk = new opentelemetry.NodeSDK({
+const sdk = new NodeSDK({
     serviceName: 'frontend',
     traceExporter: new OTLPTraceExporter({
         url: OTEL_EXPORTER_OTLP_ENDPOINT

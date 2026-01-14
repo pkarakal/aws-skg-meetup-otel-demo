@@ -3,12 +3,15 @@ package telemetry
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/attribute"
 	sdkmeter "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 )
 
-type NoOpProvider struct{}
+type NoOpProvider struct {
+	logger *zap.Logger
+}
 
 func (p *NoOpProvider) Tracer() *sdktrace.TracerProvider {
 	trace := sdktrace.NewTracerProvider()
@@ -22,6 +25,24 @@ func (p *NoOpProvider) Meter() *sdkmeter.MeterProvider {
 	return meter
 }
 
-func NewNoOpProvider(_ *ProviderConfiguration, _ *zap.Logger) *NoOpProvider {
-	return &NoOpProvider{}
+func (p *NoOpProvider) Logger() *zap.Logger {
+	return p.logger
+}
+
+func (p *NoOpProvider) LoggerUndo() {
+	return
+}
+
+func (p *NoOpProvider) Attributes() []attribute.KeyValue {
+	return nil
+}
+
+func (p *NoOpProvider) Shutdown(_ context.Context) error {
+	return nil
+}
+
+func NewNoOpProvider(_ *ProviderConfiguration, _ bool) *NoOpProvider {
+	return &NoOpProvider{
+		logger: zap.NewNop(),
+	}
 }

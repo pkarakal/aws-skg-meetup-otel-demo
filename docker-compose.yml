@@ -17,6 +17,8 @@ services:
       timeout: 10s
       retries: 5
       start_period: 45s
+    networks:
+      demo:
 
   minio:
     image: minio/minio
@@ -59,62 +61,79 @@ services:
     volumes:
       - rabbitmq-storage:/var/lib/rabbitmq
 
-  otel-collector:
-    networks:
-      - demo
-    image: otel/opentelemetry-collector-contrib:latest
-    volumes:
-      - "./telemetry/otel-collector-config.yml:/etc/otelcol/otel-collector-config.yml"
-    command: --config /etc/otelcol/otel-collector-config.yml
-    ports:
-      - "14278:14278"
-      - "65535:65535"
-      - "55677:55677"
-      - "12345:12345"
-      - "1888:1888"   # pprof extension
-      - "8888:8888"   # Prometheus metrics exposed by the collector
-      - "8889:8889"   # Prometheus exporter metrics
-      - "13133:13133" # health_check extension
-      - "55679:55679" # zpages extension
-      - "4317:4317"   # OTLP receiver
-      - "4318:4318"
-
-  prometheus:
-    container_name: prometheus
-    networks:
-      - demo
-    image: prom/prometheus:latest
-    volumes:
-      - "./telemetry/prometheus.yml:/etc/prometheus/prometheus.yml"
+  tempo:
+    image: grafana/tempo:2.9.0
+    container_name: tempo
     command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--web.enable-remote-write-receiver"
-    ports:
-      - "9090:9090"
-
-  jaeger:
-    container_name: jaeger
-    image: jaegertracing/all-in-one:latest
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
+      - "-config.file=/etc/tempo-config/tempo.yaml"
+      - "-storage.trace.backend=local"
+      - "-storage.trace.local.path=/tmp/tempo/traces"
+      - "-storage.trace.wal.path=/tmp/tempo/wal"
+      - "-auth.enabled=false"
+      - "-server.http-listen-port=3200"
+    restart: unless-stopped
+    volumes:
+      - ${PWD}/telemetry/tempo.yaml:/etc/tempo-config/tempo.yaml
     networks:
-      - demo
+      demo:
+
+  mimir:
+    image: grafana/mimir:2.17.4
+    container_name: mimir
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/mimir-config/mimir.yaml
+    volumes:
+      - ${PWD}/telemetry/mimir.yaml:/etc/mimir-config/mimir.yaml
+    networks:
+      demo:
+
+  loki:
+    image: grafana/loki:3.6.3
+    container_name: loki
+    restart: unless-stopped
     ports:
-      - "16686:16686"
-      - "6831:6831/udp"
-      - "6832:6832/udp"
-      - "5778:5778"
-      - "14269:14269"
+      - "3100:3100"
+    networks:
+      demo:
 
   grafana:
     container_name: grafana
-    image: grafana/grafana-oss:latest
-    networks:
-      - demo
+    image: grafana/grafana:12.0.2
+    restart: unless-stopped
+    environment:
+      - "GF_INSTALL_PLUGINS=grafana-opensearch-datasource"
+    volumes:
+      - ./telemetry/grafana/provisioning/:/etc/grafana/provisioning/
+      - "grafana-storage:/var/lib/grafana"
     ports:
       - "3000:3000"
+    networks:
+      demo:
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.143.1
+    container_name: otel-collector
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+    restart: unless-stopped
+    command: [ "--config=/etc/otelcol-config.yml"]
+    user: 0:0
     volumes:
-      - "grafana-storage:/var/lib/grafana"
+      - /:/hostfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./telemetry/otel-collector-config.yml:/etc/otelcol-config.yml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      tempo:
+        condition: service_started
+    networks:
+      demo:
 
 volumes:
   postgres-storage:

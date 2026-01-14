@@ -145,7 +145,7 @@ func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error
 	defer span.End()
 
 	userCart, err := r.cartClient.GetCart(childCtx, cartId)
-	if err != nil {
+	if err != nil || userCart == nil {
 		r.logger.Error("error getting cart from cart service", zap.Error(err))
 		span.SetStatus(codes.Error, "error getting cart from cart service")
 		span.RecordError(err)
@@ -164,7 +164,7 @@ func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error
 			failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "CATALOG_FAILURE")))
 			return ProductNotFound
 		}
-		if product.Quantity <= 0 {
+		if product == nil || product.Quantity <= 0 {
 			r.logger.Error("quantity 0 is not valid", zap.Int64("product_id", item.ProductID))
 			span.SetStatus(codes.Error, "quantity 0 is not valid")
 			span.RecordError(errors.New("quantity 0 is not valid"))

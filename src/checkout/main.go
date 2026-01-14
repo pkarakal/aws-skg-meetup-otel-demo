@@ -23,23 +23,24 @@ import (
 )
 
 func main() {
-	logger, undo := config.InitLogging(true)
-	defer logger.Sync()
-	defer undo()
-	c, err := config.LoadConfig()
-	if err != nil {
-		logger.Fatal("couldn't load configuration. Terminating", zap.Error(err))
-	}
-	logger.Debug("Got config", zap.Any("config", c))
-
+	logger := zap.NewNop()
 	telemetryKeys := []func(*telemetry.OTELProvider){
 		telemetry.ServiceName("checkout"),
 		telemetry.ServiceVersion("0.1.0"),
 		telemetry.ServiceEnvironment("demo"),
 		telemetry.ServiceHostName(),
 	}
+	c, err := config.LoadConfig()
+	if err != nil {
+		logger.Fatal("couldn't load configuration. Terminating", zap.Error(err))
+	}
 
-	tp, err := config.InitTelemetry(logger, &c.TelemetryConfig, telemetryKeys)
+	tp, err := config.InitTelemetry(logger, c.TelemetryConfig, true, telemetryKeys)
+	if err != nil {
+		logger.Error("Failed to initialize telemetry provider", zap.Error(err))
+		tp = telemetry.NewNoOpProvider(nil, false)
+	}
+	logger = tp.Logger()
 	if err != nil {
 		logger.Error("couldn't initialize telemetry", zap.Error(err))
 	}
@@ -111,6 +112,9 @@ func run(ctx context.Context, c *config.Configuration) error {
 		defer cancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
 			logger.Error("error shutting down http server", zap.Error(err))
+		}
+		if err := tp.Shutdown(shutdownCtx); err != nil {
+			logger.Error("failed to flush final telemetry data")
 		}
 	}()
 	wg.Wait()
