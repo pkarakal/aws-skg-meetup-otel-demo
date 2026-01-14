@@ -1,17 +1,29 @@
 "use client";
 import React from 'react';
-import {useCartStore} from '@/stores/cart';
+import {useCartStore, useCartHydration} from '@/stores/cart';
 import Link from 'next/link';
 import {Button} from '@/components/ui/button';
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
 
 export const CartComponent: React.FC = () => {
     const {cart, incrementCartItem, decrementCartItem, clearCart} = useCartStore();
+    const isHydrated = useCartHydration();
 
     const total = cart.reduce(
         (sum, item) => sum + item.price * item.quantity,
         0
     );
+
+    if (!isHydrated) {
+        return (
+            <div className="container mx-auto p-4">
+                <h1 className="text-2xl font-bold mb-4">Your Cart</h1>
+                <div className="animate-pulse">
+                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="container mx-auto p-4">
@@ -66,11 +78,11 @@ export const CartComponent: React.FC = () => {
                             <Button variant="destructive" onClick={clearCart}>
                                 Clear Cart
                             </Button>
-                            <Link href="/checkout" passHref>
-                                <Button variant="default">
+                            <Button variant="default" asChild>
+                                <Link href="/checkout">
                                     Proceed to Checkout
-                                </Button>
-                            </Link>
+                                </Link>
+                            </Button>
                         </div>
                     </div>
                 </>

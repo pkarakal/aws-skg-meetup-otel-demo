@@ -1,11 +1,15 @@
+"use client";
+
 import React from "react";
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
 import {FormControl, FormField, FormItem, FormLabel, FormMessage} from "@/components/ui/form";
 import {Input} from "@/components/ui/input";
+import {UseFormRegister, FieldErrors} from "react-hook-form";
+import {CheckoutFormData} from "@/types/schemas";
 
 interface PaymentInfoCardProps {
-    register: any
-    errors: any
+    register: UseFormRegister<CheckoutFormData>;
+    errors: FieldErrors<CheckoutFormData>;
 }
 
 export const PaymentInfoComponent: React.FC<PaymentInfoCardProps> = ({register, errors}) => {

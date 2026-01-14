@@ -29,15 +29,16 @@ export const Navbar: React.FC = () => {
                     <NavigationMenuList className="flex space-x-4">
                         {navItems.map((item) => (
                             <NavigationMenuItem key={item.name}>
-                                <Link href={item.href} passHref>
-                                    <NavigationMenuLink
+                                <NavigationMenuLink asChild>
+                                    <Link
+                                        href={item.href}
                                         className={cn(
                                             'px-3 py-2 rounded-md text-sm font-medium'
                                         )}
                                     >
                                         {item.name}
-                                    </NavigationMenuLink>
-                                </Link>
+                                    </Link>
+                                </NavigationMenuLink>
                             </NavigationMenuItem>
                         ))}
                         <NavigationMenuItem>

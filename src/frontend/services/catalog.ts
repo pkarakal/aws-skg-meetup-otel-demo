@@ -17,10 +17,13 @@ const CatalogGateway = () => ({
                             'Content-Type': 'application/json'
                         }
                     });
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch products: ${response.status}`);
+                    }
                     return await response.json() as Products
                 } catch (e) {
-                    console.error("Failed to get all products", e)
-                    return [] as Products
+                    console.error("Failed to get all products", e);
+                    throw e;
                 }
                 finally {
                     span.end();
