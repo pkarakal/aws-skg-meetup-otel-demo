@@ -1,0 +1,13 @@
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+overrides:
+  defaults:
+    ingestion:
+      burst_size_bytes: 80000000
+      rate_limit_bytes: 60000000

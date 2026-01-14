@@ -8,7 +8,6 @@ import (
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/telemetry"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var DefaultConfigDirs = []string{
@@ -85,30 +84,11 @@ func LoadConfig() (*Configuration, error) {
 	return config, nil
 }
 
-func InitLogging(verbose bool) (*zap.Logger, func()) {
-	atomicLevel := zap.NewAtomicLevel()
-	level := zapcore.WarnLevel
-	if verbose {
-		level = zapcore.DebugLevel
-	}
-	atomicLevel.SetLevel(level)
-	// initialize logger
-	logger := zap.New(zapcore.NewCore(
-		zapcore.NewJSONEncoder(
-			zap.NewProductionEncoderConfig()),
-		zapcore.Lock(os.Stdout), atomicLevel,
-	))
-
-	undo := zap.ReplaceGlobals(logger)
-	return logger, undo
-}
-
-func InitTelemetry(l *zap.Logger, c *TelemetryConfig, attributes []func(*telemetry.OTELProvider)) (telemetry.Provider, error) {
+func InitTelemetry(l *zap.Logger, c TelemetryConfig, verbose bool, attributes []func(*telemetry.OTELProvider)) (telemetry.Provider, error) {
 	tc := telemetry.ProviderConfiguration{}
 	telemetryOptions := &telemetry.Options{
-		Logger: l.With(zap.String("component", "telemetry")),
+		LoggerVerbose: verbose,
 	}
-	l.Debug("Config", zap.Any("config", c))
 	if !c.Enabled || (c.CollectorPort == nil || c.CollectorURL == nil) {
 		l.Info("Telemetry is not enabled. Initializing NoOp Provider")
 		return tc.NewNoOpProvider(telemetryOptions)

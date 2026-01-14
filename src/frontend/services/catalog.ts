@@ -7,7 +7,7 @@ const {CATALOG_SERVICE_ADDR = ''} = process.env;
 
 const CatalogGateway = () => ({
     getProducts: async(): Promise<Products> => {
-        return await trace
+        return trace
             .getTracer("frontend.catalog.gateway")
             .startActiveSpan("getProducts", async(span) => {
                 try {

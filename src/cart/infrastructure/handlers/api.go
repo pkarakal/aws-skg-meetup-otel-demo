@@ -3,8 +3,9 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
-	"go.opentelemetry.io/otel/codes"
 	"net/http"
+
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/cart/application"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/cart/model"
@@ -36,7 +37,7 @@ func NewCartHandler(service *application.CartService, logger *zap.Logger, tp tel
 }
 
 func (h *CartHandler) AddToCart(w http.ResponseWriter, r *http.Request) {
-	childCtx, span := h.tracer.Start(r.Context(), "AddToCart")
+	childCtx, span := trace.SpanFromContext(r.Context()).TracerProvider().Tracer("cart.handler").Start(r.Context(), "AddToCart")
 	defer span.End()
 	var item model.CartItem
 	w.Header().Add("Content-Type", "application/json")
@@ -63,7 +64,7 @@ func (h *CartHandler) AddToCart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
-	childCtx, span := h.tracer.Start(r.Context(), "GetCart")
+	childCtx, span := trace.SpanFromContext(r.Context()).TracerProvider().Tracer("cart.handler").Start(r.Context(), "GetCart")
 	defer span.End()
 	cartID := r.PathValue("id")
 	w.Header().Add("Content-Type", "application/json")
@@ -87,7 +88,7 @@ func (h *CartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CartHandler) EmptyCart(w http.ResponseWriter, r *http.Request) {
-	childCtx, span := h.tracer.Start(r.Context(), "EmptyCart")
+	childCtx, span := trace.SpanFromContext(r.Context()).TracerProvider().Tracer("cart.handler").Start(r.Context(), "EmptyCart")
 	defer span.End()
 	cartID := r.PathValue("id")
 	w.Header().Add("Content-Type", "application/json")
@@ -105,7 +106,7 @@ func (h *CartHandler) EmptyCart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CartHandler) CreateCart(w http.ResponseWriter, r *http.Request) {
-	childCtx, span := h.tracer.Start(r.Context(), "CreateCart")
+	childCtx, span := trace.SpanFromContext(r.Context()).TracerProvider().Tracer("cart.handler").Start(r.Context(), "CreateCart")
 	defer span.End()
 	w.Header().Set("Content-Type", "application/json")
 

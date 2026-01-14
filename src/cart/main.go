@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"errors"
-	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/cart/infrastructure/handlers"
 	"net"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/cart/infrastructure/handlers"
 
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/cart/application"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/cart/config"
@@ -20,34 +21,32 @@ import (
 )
 
 func main() {
-	logger, undo := config.InitLogging(true)
-	defer logger.Sync()
-	defer undo()
-	c, err := config.LoadConfig()
-	if err != nil {
-		logger.Fatal("couldn't load configuration. Terminating", zap.Error(err))
-	}
-	logger.Debug("Got config", zap.Any("config", c))
-	redisClient := c.OpenRedisConnection()
-	conn := redisClient.Conn()
-	if conn == nil {
-		logger.Fatal("couldn't connect to redis", zap.Error(err))
-	}
-	defer conn.Close()
+	logger := zap.NewNop()
 	telemetryKeys := []func(*telemetry.OTELProvider){
 		telemetry.ServiceName("cart"),
 		telemetry.ServiceVersion("0.1.0"),
 		telemetry.ServiceEnvironment("demo"),
 		telemetry.ServiceHostName(),
 	}
-	tp, err := config.InitTelemetry(
-		logger,
-		&c.TelemetryConfig,
-		telemetryKeys,
-	)
+	c, err := config.LoadConfig()
+	if err != nil {
+		logger.Fatal("couldn't load configuration. Terminating", zap.Error(err))
+	}
+
+	tp, err := config.InitTelemetry(logger, c.TelemetryConfig, true, telemetryKeys)
 	if err != nil {
 		logger.Error("Failed to initialize telemetry provider", zap.Error(err))
+		tp = telemetry.NewNoOpProvider(nil, false)
 	}
+	logger = tp.Logger()
+
+	redisClient := c.OpenRedisConnection()
+	conn := redisClient.Conn()
+	if conn == nil {
+		logger.Fatal("couldn't connect to redis", zap.Error(err))
+	}
+	defer conn.Close()
+
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, "logger", logger)
 	ctx = context.WithValue(ctx, "telemetry", tp)
@@ -86,6 +85,9 @@ func run(ctx context.Context, c *config.Configuration) error {
 		defer cancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
 			logger.Error("error shutting down http server", zap.Error(err))
+		}
+		if err := tp.Shutdown(shutdownCtx); err != nil {
+			logger.Error("failed to flush final telemetry data")
 		}
 	}()
 	wg.Wait()

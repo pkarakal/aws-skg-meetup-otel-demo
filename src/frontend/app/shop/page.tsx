@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic';
 
 const Shop = async () => {
     const products = await CatalogGateway.getProducts();
+    console.log(products);
 
     return (
         <div className="container mx-auto py-2">

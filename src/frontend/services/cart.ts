@@ -7,7 +7,7 @@ const {CART_SERVICE_ADDR = ''} = process.env;
 
 const CartGateway = () => ({
     createCart: async () => {
-        return await trace
+        return trace
             .getTracer("frontend.cart.gateway")
             .startActiveSpan("createCart", async (span) => {
                 try {
@@ -20,14 +20,14 @@ const CartGateway = () => ({
                     return await response.json() as Cart
                 } catch (err) {
                     console.error("Failed to create a new cart", err)
-                    return { id: 0, items: null, total: 0 } as Cart
+                    return {id: 0, items: null, total: 0} as Cart
                 } finally {
                     span.end()
                 }
             });
     },
     getCart: async (cartId: string): Promise<Cart> => {
-        return await trace
+        return trace
             .getTracer("fronted.cart.gateway")
             .startActiveSpan("getCart", async (span) => {
                 try {
@@ -40,14 +40,14 @@ const CartGateway = () => ({
                     return await response.json() as Cart
                 } catch (err) {
                     console.error("Failed to get cart", err)
-                    return { id: 0, items: null, total: 0 } as Cart
+                    return {id: 0, items: null, total: 0} as Cart
                 } finally {
                     span.end()
                 }
             });
     },
     addToCart: async(cartId: string|number, product: Product): Promise<Cart> => {
-        return await trace
+        return trace
             .getTracer("fronted.cart.gateway")
             .startActiveSpan("addToCart", async (span) => {
                 try {
@@ -69,7 +69,7 @@ const CartGateway = () => ({
             });
     },
     emptyCart: async(cartId: string|number): Promise<Cart> => {
-        return await trace
+        return trace
             .getTracer("fronted.cart.gateway")
             .startActiveSpan("emptyCart", async (span) => {
                 try {

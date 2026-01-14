@@ -3,28 +3,33 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"go.opentelemetry.io/otel/propagation"
 	"os"
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/contrib/bridges/otelzap"
 	"go.opentelemetry.io/contrib/instrumentation/host"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/propagation"
+	sdklogger "go.opentelemetry.io/otel/sdk/log"
 	sdkmeter "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Options struct {
-	Logger *zap.Logger
+	LoggerVerbose bool
 }
 
 type ProviderConfiguration struct {
@@ -37,17 +42,20 @@ func (c *ProviderConfiguration) Name() string {
 }
 
 func (c *ProviderConfiguration) NewTelemetryProvider(opt *Options, attributes []func(provider *OTELProvider)) (*OTELProvider, error) {
-	tp := NewTelemetryProvider(c, opt.Logger, attributes...)
-	return tp, nil
+	return NewTelemetryProvider(c, opt.LoggerVerbose, attributes...), nil
 }
 
 func (c *ProviderConfiguration) NewNoOpProvider(opt *Options) (*NoOpProvider, error) {
-	return NewNoOpProvider(c, opt.Logger), nil
+	return NewNoOpProvider(c, opt.LoggerVerbose), nil
 }
 
 type Provider interface {
 	Tracer() *sdktrace.TracerProvider
+	Logger() *zap.Logger
 	Meter() *sdkmeter.MeterProvider
+	LoggerUndo()
+	Shutdown(ctx context.Context) error
+	Attributes() []attribute.KeyValue
 }
 
 type OTELProvider struct {
@@ -56,8 +64,12 @@ type OTELProvider struct {
 	mtx        sync.Mutex
 	attributes []attribute.KeyValue
 
-	tracer *sdktrace.TracerProvider
-	meter  *sdkmeter.MeterProvider
+	verbose    bool
+	loggerUndo func()
+
+	tracer         *sdktrace.TracerProvider
+	meter          *sdkmeter.MeterProvider
+	loggerProvider *sdklogger.LoggerProvider
 }
 
 func ServiceName(name string) func(*OTELProvider) {
@@ -79,7 +91,7 @@ func ServiceVersion(version string) func(*OTELProvider) {
 func ServiceEnvironment(env string) func(*OTELProvider) {
 	return func(tp *OTELProvider) {
 		tp.mtx.Lock()
-		tp.attributes = append(tp.attributes, semconv.DeploymentEnvironmentKey.String(env))
+		tp.attributes = append(tp.attributes, semconv.DeploymentEnvironmentNameKey.String(env))
 		tp.mtx.Unlock()
 	}
 }
@@ -103,15 +115,32 @@ func (p *OTELProvider) Tracer() *sdktrace.TracerProvider {
 func (p *OTELProvider) Meter() *sdkmeter.MeterProvider {
 	return p.meter
 }
+func (p *OTELProvider) Logger() *zap.Logger {
+	return p.logger
+}
+func (p *OTELProvider) LoggerUndo() {
+	p.loggerUndo()
+}
 
-func NewTelemetryProvider(c *ProviderConfiguration, l *zap.Logger, attributes ...func(*OTELProvider)) *OTELProvider {
-	if l == nil {
-		l = zap.NewNop()
-	}
+func (p *OTELProvider) Shutdown(ctx context.Context) error {
+	_ = p.tracer.ForceFlush(ctx)
+	_ = p.tracer.Shutdown(ctx)
+	_ = p.meter.ForceFlush(ctx)
+	_ = p.meter.Shutdown(ctx)
+	_ = p.loggerProvider.ForceFlush(ctx)
+	_ = p.loggerProvider.Shutdown(ctx)
+	return nil
+}
 
+func (p *OTELProvider) Attributes() []attribute.KeyValue {
+	return p.attributes
+}
+
+func NewTelemetryProvider(c *ProviderConfiguration, verbose bool, attributes ...func(*OTELProvider)) *OTELProvider {
 	p := &OTELProvider{
-		logger: l,
-		config: c,
+		logger:  zap.NewNop(),
+		config:  c,
+		verbose: verbose,
 	}
 
 	for _, attr := range attributes {
@@ -137,13 +166,21 @@ func (p *OTELProvider) initSDK() error {
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	conn, err := grpc.DialContext(ctx, fmt.Sprintf("%s:%d", p.config.EndpointURL, p.config.Port),
+	conn, err := grpc.NewClient(fmt.Sprintf("%s:%d", p.config.EndpointURL, p.config.Port),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
 		p.logger.Error("Failed to create connection with OTEL collector", zap.Error(err))
 		return err
 	}
+
+	prop := propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+
+	otel.SetTextMapPropagator(prop)
+
 	traceProvider, err := p.setupTracer(res, &ctx, conn)
 	if err != nil {
 		p.logger.Error("Failed to setup trace provider", zap.Error(err))
@@ -156,13 +193,24 @@ func (p *OTELProvider) initSDK() error {
 		return err
 	}
 
+	lp, err := p.setupLogger(res, &ctx, conn)
+	if err != nil {
+		p.logger.Error("Failed to setup logger", zap.Error(err))
+		return err
+	}
+	logger, undo := initLogging(p.verbose, lp)
+
 	// override global providers
 	otel.SetMeterProvider(meterProvider)
 	otel.SetTracerProvider(traceProvider)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	global.SetLoggerProvider(lp)
+	zap.ReplaceGlobals(logger)
 
 	p.tracer = traceProvider
 	p.meter = meterProvider
+	p.loggerProvider = lp
+	p.logger = logger
+	p.loggerUndo = undo
 
 	p.setupBaseMetrics()
 
@@ -209,6 +257,21 @@ func (p *OTELProvider) setupMeter(res *resource.Resource, ctx *context.Context, 
 	return meterProvider, nil
 }
 
+func (p *OTELProvider) setupLogger(res *resource.Resource, ctx *context.Context, con *grpc.ClientConn) (*sdklogger.LoggerProvider, error) {
+	loggerExporter, err := otlploggrpc.New(*ctx, otlploggrpc.WithGRPCConn(con))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logger exporter: %w", err)
+	}
+	lp := sdklogger.NewLoggerProvider(
+		sdklogger.WithProcessor(
+			sdklogger.NewBatchProcessor(loggerExporter, sdklogger.WithExportInterval(10*time.Second)),
+		),
+		sdklogger.WithResource(res),
+	)
+
+	return lp, nil
+}
+
 // setupBaseMetrics starts metrics collection for the host the process is running on
 // as well as go runtime metrics for the process. It is generally safe to ignore the
 // errors of these instrumentations as they don't affect the overall process
@@ -219,8 +282,31 @@ func (p *OTELProvider) setupBaseMetrics() {
 	}
 	// Reading memory stats every second is extremely expensive.
 	// Reverting to using the default 15 second interval
-	err = runtime.Start(runtime.WithMinimumReadMemStatsInterval(runtime.DefaultMinimumReadMemStatsInterval))
+	err = runtime.Start(runtime.WithMinimumReadMemStatsInterval(runtime.DefaultMinimumReadMemStatsInterval), runtime.WithMeterProvider(p.meter))
 	if err != nil {
 		p.logger.Error("Failed to start runtime metrics exporter", zap.Error(err))
 	}
+}
+
+func initLogging(verbose bool, provider *sdklogger.LoggerProvider) (*zap.Logger, func()) {
+	atomicLevel := zap.NewAtomicLevel()
+	level := zapcore.WarnLevel
+	if verbose {
+		level = zapcore.DebugLevel
+	}
+	atomicLevel.SetLevel(level)
+	// initialize logger
+	logger := zap.New(
+		zapcore.NewTee(
+			zapcore.NewCore(
+				zapcore.NewJSONEncoder(
+					zap.NewProductionEncoderConfig()),
+				zapcore.Lock(os.Stdout), atomicLevel,
+			),
+			otelzap.NewCore("checkout", otelzap.WithLoggerProvider(provider)),
+		),
+	)
+
+	undo := zap.ReplaceGlobals(logger)
+	return logger, undo
 }
