@@ -37,13 +37,12 @@ func NewCheckoutHandler(service *application.CheckoutService, logger *zap.Logger
 }
 
 func (h *CheckoutHandler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
-	h.logger.Debug("lalala", zap.Any("ctx", r.Context()))
 	childCtx, span := trace.SpanFromContext(r.Context()).TracerProvider().Tracer("cart.handler").Start(r.Context(), "PlaceOrder")
 	defer span.End()
 	var item models.PlaceOrderRequest
 	w.Header().Add("Content-Type", "application/json")
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
-		h.logger.Error("Failed to parse item body", zap.Error(err), zap.Any("body", r.Body))
+		h.logger.Error("Failed to parse item body", zap.Error(err), zap.Any("body", r.Body), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -52,11 +51,11 @@ func (h *CheckoutHandler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 
 	cartID, err := strconv.ParseInt(r.PathValue("cartId"), 10, 64)
 	if err != nil {
-		h.logger.Error("Failed to parse cart id", zap.Error(err))
+		h.logger.Error("Failed to parse cart id", zap.Error(err), zap.Any("context", childCtx))
 	}
 	newCartId, err := h.checkoutService.PlaceOrder(childCtx, cartID, &item)
 	if err != nil {
-		h.logger.Error("Failed to place order ", zap.Int64("id", cartID), zap.Error(err))
+		h.logger.Error("Failed to place order ", zap.Int64("id", cartID), zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

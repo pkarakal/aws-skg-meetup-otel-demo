@@ -39,13 +39,13 @@ func (s *CheckoutService) PlaceOrder(ctx context.Context, cartId int64, order *m
 	childCtx, span := s.tracer.Start(ctx, "PlaceOrder")
 	defer span.End()
 	if order == nil {
-		s.logger.Error("Missing order request")
+		s.logger.Error("Missing order request", zap.Any("context", childCtx))
 		return nil, errors.New("missing order request")
 	}
 	childCtx = context.WithValue(childCtx, "postalCode", order.Address.PostalCode)
 	newCartId, err := s.repo.PlaceOrder(childCtx, cartId)
 	if err != nil {
-		s.logger.Error("Error placing order", zap.Error(err))
+		s.logger.Error("Error placing order", zap.Error(err), zap.Any("context", childCtx))
 		return nil, err
 	}
 	return newCartId, nil

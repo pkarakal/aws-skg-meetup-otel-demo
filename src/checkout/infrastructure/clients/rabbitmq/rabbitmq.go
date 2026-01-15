@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"context"
 	"fmt"
+
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/telemetry"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel"
@@ -159,7 +160,7 @@ func (a *AMQP) PublishMessage(ctx context.Context, message []byte, routingKey st
 
 	amqpChan, err := a.amqpChannel()
 	if err != nil {
-		a.logger.Error("Couldn't open AMQP channel", zap.Error(err))
+		a.logger.Error("Couldn't open AMQP channel", zap.Error(err), zap.Any("context", childCtx))
 		return err
 	}
 	err = amqpChan.Publish(
@@ -174,13 +175,13 @@ func (a *AMQP) PublishMessage(ctx context.Context, message []byte, routingKey st
 		},
 	)
 	if err != nil {
-		a.logger.Error("Failed to publish message", zap.Error(err))
+		a.logger.Error("Failed to publish message", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		failedCounter.Add(childCtx, 1)
 		return err
 	}
-	a.logger.Debug("Successfully published message", zap.String("message", string(message)))
+	a.logger.Debug("Successfully published message", zap.String("message", string(message)), zap.Any("context", childCtx))
 	messageCounter.Add(childCtx, 1)
 	return nil
 }
