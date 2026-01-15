@@ -42,7 +42,7 @@ func (h *CartHandler) AddToCart(w http.ResponseWriter, r *http.Request) {
 	var item model.CartItem
 	w.Header().Add("Content-Type", "application/json")
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
-		h.logger.Error("Failed to parse item body", zap.Error(err), zap.Any("body", r.Body))
+		h.logger.Error("Failed to parse item body", zap.Error(err), zap.Any("body", r.Body), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -52,7 +52,7 @@ func (h *CartHandler) AddToCart(w http.ResponseWriter, r *http.Request) {
 	cartID := r.PathValue("id")
 	cart, err := h.cartService.AddItem(childCtx, cartID, item)
 	if err != nil {
-		h.logger.Error("Failed to add item to cart ", zap.String("id", cartID), zap.Error(err))
+		h.logger.Error("Failed to add item to cart ", zap.String("id", cartID), zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -71,13 +71,13 @@ func (h *CartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 	cart, err := h.cartService.GetCart(childCtx, cartID)
 	if err != nil {
 		if errors.Is(err, application.CartNotFound) {
-			h.logger.Error("Failed to find cart ", zap.String("id", cartID), zap.Error(err))
+			h.logger.Error("Failed to find cart ", zap.String("id", cartID), zap.Error(err), zap.Any("context", childCtx))
 			span.SetStatus(codes.Error, err.Error())
 			span.RecordError(err)
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		h.logger.Error("An error occurred when trying to find the cart", zap.String("id", cartID), zap.Error(err))
+		h.logger.Error("An error occurred when trying to find the cart", zap.String("id", cartID), zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -94,7 +94,7 @@ func (h *CartHandler) EmptyCart(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	cart, err := h.cartService.EmptyCart(childCtx, cartID)
 	if err != nil {
-		h.logger.Error("Failed to empty cart", zap.String("id", cartID), zap.Error(err))
+		h.logger.Error("Failed to empty cart", zap.String("id", cartID), zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -112,7 +112,7 @@ func (h *CartHandler) CreateCart(w http.ResponseWriter, r *http.Request) {
 
 	cart, err := h.cartService.NewCart(childCtx)
 	if err != nil {
-		h.logger.Error("Failed to create a new cart", zap.Error(err))
+		h.logger.Error("Failed to create a new cart", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -131,7 +131,7 @@ func (h *CartHandler) DeleteCart(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	err := h.cartService.DeleteCart(childCtx, cartID)
 	if err != nil {
-		h.logger.Error("Failed to delete cart", zap.String("id", cartID), zap.Error(err))
+		h.logger.Error("Failed to delete cart", zap.String("id", cartID), zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

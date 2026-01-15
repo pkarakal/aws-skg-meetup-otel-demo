@@ -84,7 +84,7 @@ func (r *CartRepository) Save(ctx context.Context, cart model.Cart) error {
 	defer span.End()
 	data, err := json.Marshal(cart)
 	if err != nil {
-		r.logger.Error("Failed to marshal cart to json", zap.Error(err))
+		r.logger.Error("Failed to marshal cart to json", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Failed to marshal cart to json")
 		span.RecordError(err)
 		return err
@@ -97,7 +97,7 @@ func (r *CartRepository) Save(ctx context.Context, cart model.Cart) error {
 		metric.WithAttributes(attribute.String("operation", "save")),
 	)
 	if err != nil {
-		r.logger.Error("Failed to save cart to redis", zap.Error(err))
+		r.logger.Error("Failed to save cart to redis", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Failed to save cart to redis")
 		span.RecordError(err)
 	}
@@ -115,13 +115,13 @@ func (r *CartRepository) GetByID(ctx context.Context, id string) (*model.Cart, e
 		metric.WithAttributes(attribute.String("operation", "query")),
 	)
 	if errors.Is(err, redis.Nil) {
-		r.logger.Error("Couldn't find the cart in the redis database", zap.String("id", id))
+		r.logger.Error("Couldn't find the cart in the redis database", zap.String("id", id), zap.Any("context", childCtx))
 		cacheMisses.Add(childCtx, 1)
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return nil, nil
 	} else if err != nil {
-		r.logger.Error("Error while fetching cart from redis", zap.String("id", id), zap.Error(err))
+		r.logger.Error("Error while fetching cart from redis", zap.String("id", id), zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return nil, err
@@ -140,10 +140,10 @@ func (r *CartRepository) GenerateNextCartID(ctx context.Context) (*int64, error)
 	defer span.End()
 	nextID, err := r.client.Incr(childCtx, "cart_id_counter").Result()
 	if err != nil {
-		r.logger.Error("Error while generating next cart ID", zap.Error(err))
+		r.logger.Error("Error while generating next cart ID", zap.Error(err), zap.Any("context", childCtx))
 		return nil, err
 	}
-	r.logger.Debug("Successfully generated next cart ID", zap.Int64("nextID", nextID))
+	r.logger.Debug("Successfully generated next cart ID", zap.Int64("nextID", nextID), zap.Any("context", childCtx))
 	return &nextID, nil
 }
 
@@ -158,7 +158,7 @@ func (r *CartRepository) Delete(ctx context.Context, id string) error {
 		metric.WithAttributes(attribute.String("operation", "delete")),
 	)
 	if err != nil {
-		r.logger.Error("Failed to delete cart from redis", zap.Error(err), zap.String("id", id))
+		r.logger.Error("Failed to delete cart from redis", zap.Error(err), zap.String("id", id), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Failed to delete cart from redis")
 		span.RecordError(err)
 		return err

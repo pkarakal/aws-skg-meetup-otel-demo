@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/cart/model"
@@ -38,17 +39,17 @@ func NewCartService(repo ports.CartRepository, logger *zap.Logger, tp telemetry.
 func (s *CartService) AddItem(ctx context.Context, cartID string, item model.CartItem) (*model.Cart, error) {
 	childCtx, span := s.tracer.Start(ctx, "AddItem")
 	defer span.End()
-	s.logger.Debug("Will try to add item to cart", zap.String("cartID", cartID), zap.Any("item", item))
+	s.logger.Debug("Will try to add item to cart", zap.String("cartID", cartID), zap.Any("item", item), zap.Any("context", childCtx))
 	cart, err := s.repo.GetByID(childCtx, cartID)
 	if err != nil {
-		s.logger.Error("Error finding cart", zap.String("cartID", cartID), zap.Error(err))
+		s.logger.Error("Error finding cart", zap.String("cartID", cartID), zap.Any("context", childCtx), zap.Error(err))
 		return nil, err
 	}
 	if cart == nil {
-		s.logger.Warn("Couldn't find cart with the given ID. Creating a new one", zap.String("cartID", cartID))
+		s.logger.Warn("Couldn't find cart with the given ID. Creating a new one", zap.String("cartID", cartID), zap.Any("context", childCtx))
 		cart, err = s.NewCart(childCtx)
 		if err != nil {
-			s.logger.Error("Error creating cart", zap.String("cartID", cartID), zap.Error(err))
+			s.logger.Error("Error creating cart", zap.String("cartID", cartID), zap.Any("context", childCtx), zap.Error(err))
 			span.SetStatus(codes.Error, err.Error())
 			span.RecordError(err)
 			return nil, err
@@ -58,7 +59,7 @@ func (s *CartService) AddItem(ctx context.Context, cartID string, item model.Car
 	cart.AddItem(item)
 	err = s.repo.Save(childCtx, *cart)
 	if err != nil {
-		s.logger.Error("Error updating cart", zap.String("cartID", cartID), zap.Error(err))
+		s.logger.Error("Error updating cart", zap.String("cartID", cartID), zap.Any("context", childCtx), zap.Error(err))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return cart, err
@@ -71,11 +72,11 @@ func (s *CartService) GetCart(ctx context.Context, cartID string) (*model.Cart, 
 	defer span.End()
 	cart, err := s.repo.GetByID(childCtx, cartID)
 	if err != nil {
-		s.logger.Error("Error finding cart", zap.String("cartID", cartID), zap.Error(err))
+		s.logger.Error("Error finding cart", zap.String("cartID", cartID), zap.Any("context", childCtx), zap.Error(err))
 		return nil, err
 	}
 	if cart == nil {
-		s.logger.Error("Cart not found", zap.String("cartID", cartID))
+		s.logger.Error("Cart not found", zap.String("cartID", cartID), zap.Any("context", childCtx))
 		return nil, CartNotFound
 	}
 	return cart, nil
@@ -95,7 +96,7 @@ func (s *CartService) EmptyCart(ctx context.Context, cartID string) (*model.Cart
 	cart.Clear()
 	err = s.repo.Save(ctx, *cart)
 	if err != nil {
-		s.logger.Error("Failed to clear the cart")
+		s.logger.Error("Failed to clear the cart", zap.Any("context", childCtx), zap.Error(err))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return nil, err
@@ -108,13 +109,13 @@ func (s *CartService) NewCart(ctx context.Context) (*model.Cart, error) {
 	defer span.End()
 	cartID, err := s.repo.GenerateNextCartID(childCtx)
 	if err != nil {
-		s.logger.Error("An error occurred while generating the next cart id")
+		s.logger.Error("An error occurred while generating the next cart id", zap.Any("context", childCtx), zap.Error(err))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return nil, err
 	}
 	if cartID == nil {
-		s.logger.Warn("The cart ID returned was null")
+		s.logger.Warn("The cart ID returned was null", zap.Any("context", childCtx), zap.Error(err))
 		cartID = new(int64)
 		*cartID = 0
 	}
@@ -132,7 +133,7 @@ func (s *CartService) DeleteCart(ctx context.Context, cartID string) error {
 	defer span.End()
 	err := s.repo.Delete(childCtx, cartID)
 	if err != nil {
-		s.logger.Error("Error deleting cart", zap.String("cartID", cartID), zap.Error(err))
+		s.logger.Error("Error deleting cart", zap.String("cartID", cartID), zap.Any("context", childCtx), zap.Error(err))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return err
