@@ -8,4 +8,6 @@ import (
 
 type Repository interface {
 	GetCart(context.Context, int64) (*models.Cart, error)
+	DeleteCart(context.Context, int64) error
+	CreateCart(context.Context) (*models.Cart, error)
 }

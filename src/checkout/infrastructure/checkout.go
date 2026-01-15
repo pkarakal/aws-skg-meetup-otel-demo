@@ -140,7 +140,7 @@ func (r *CheckoutRepository) initMetrics() {
 	}
 }
 
-func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error {
+func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) (*int64, error) {
 	childCtx, span := r.tracer.Start(ctx, "PlaceOrder")
 	defer span.End()
 
@@ -150,7 +150,7 @@ func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error
 		span.SetStatus(codes.Error, "error getting cart from cart service")
 		span.RecordError(err)
 		failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "CART_FAILURE")))
-		return CartNotFound
+		return nil, CartNotFound
 	}
 
 	products := make([]*models.Inventory, 0, len(userCart.Items))
@@ -162,14 +162,14 @@ func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error
 			span.SetStatus(codes.Error, "error getting inventory from catalog service")
 			span.RecordError(err)
 			failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "CATALOG_FAILURE")))
-			return ProductNotFound
+			return nil, ProductNotFound
 		}
 		if product == nil || product.Quantity <= 0 {
 			r.logger.Error("quantity 0 is not valid", zap.Int64("product_id", item.ProductID))
 			span.SetStatus(codes.Error, "quantity 0 is not valid")
 			span.RecordError(errors.New("quantity 0 is not valid"))
 			failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "INSUFFICIENT_INVENTORY")))
-			return InsufficientInventory
+			return nil, InsufficientInventory
 		}
 		delta := item.CalculatePriceDelta(product)
 		priceDelta.Record(childCtx, delta, metric.WithAttributes(attribute.Int("productId", product.Product.Id)))
@@ -185,7 +185,7 @@ func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error
 		span.SetStatus(codes.Error, "error getting shipping cost")
 		span.RecordError(err)
 		failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "SHIPPING_COST_FAILURE")))
-		return ShippingCostCalculationFailed
+		return nil, ShippingCostCalculationFailed
 	}
 	err = r.ChargeCard(childCtx, userCart.Total+cost)
 	if err != nil {
@@ -193,7 +193,7 @@ func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error
 		span.SetStatus(codes.Error, "error charging card")
 		span.RecordError(err)
 		failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "CARD_DECLINED")))
-		return CardDeclined
+		return nil, CardDeclined
 	}
 
 	err = r.ShipOrder(childCtx)
@@ -202,7 +202,7 @@ func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error
 		span.SetStatus(codes.Error, "error shipping order")
 		span.RecordError(err)
 		failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "SHIPPING_LABEL_FAILURE")))
-		return ShippingLabelNotIssued
+		return nil, ShippingLabelNotIssued
 	}
 
 	err = r.SendConfirmation(childCtx, userCart)
@@ -211,10 +211,28 @@ func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error
 		span.SetStatus(codes.Error, "error sending confirmation")
 		span.RecordError(err)
 		failedOrders.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", "INVENTORY_UPDATE_FAILURE")))
-		return InventoryUpdateFailure
+		return nil, InventoryUpdateFailure
 	}
+
+	// Delete old cart
+	err = r.cartClient.DeleteCart(childCtx, cartId)
+	if err != nil {
+		r.logger.Warn("Failed to delete old cart, continuing anyway", zap.Error(err), zap.Int64("cartId", cartId))
+	}
+
+	// Create new cart for the user
+	newCart, err := r.cartClient.CreateCart(childCtx)
+	if err != nil {
+		r.logger.Error("Failed to create new cart after checkout", zap.Error(err))
+		span.SetStatus(codes.Error, "error creating new cart")
+		span.RecordError(err)
+		// Still count as successful order but return nil cart
+		successfulOrders.Add(childCtx, 1)
+		return nil, nil
+	}
+
 	successfulOrders.Add(childCtx, 1)
-	return nil
+	return &newCart.ID, nil
 }
 
 func (r *CheckoutRepository) GetShippingCost(ctx context.Context) (float64, error) {

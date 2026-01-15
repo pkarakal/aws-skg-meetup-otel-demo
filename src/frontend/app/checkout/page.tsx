@@ -26,7 +26,7 @@ function CheckoutSkeleton() {
 }
 
 const CheckoutPage: React.FC = () => {
-    const {cartId, cart, createCart} = useCartStore();
+    const {cartId, cart, createCart, setCartId} = useCartStore();
     const isHydrated = useCartHydration();
     const router = useRouter()
 
@@ -49,9 +49,20 @@ const CheckoutPage: React.FC = () => {
                 const respErr = await resp.json()
                 throw new Error("Got an error when submitting form" + respErr?.message)
             }
+
+            const result = await resp.json();
+
             toast.success("Successfully submitted form")
             form.reset()
-            await createCart()
+
+            // Use new cart ID from response instead of creating new cart
+            if (result.new_cart_id) {
+                setCartId(result.new_cart_id.toString());
+            } else {
+                // Fallback: create new cart if backend didn't return one
+                await createCart()
+            }
+
             router.replace("/shop")
         } catch (e){
             console.error(e)

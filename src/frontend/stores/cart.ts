@@ -8,6 +8,7 @@ interface CartState {
     cart: CartItems;
     cartId: string | null;
     createCart: () => Promise<void>;
+    setCartId: (cartId: string) => void;
     addToCart: (product: Product) => Promise<void>;
     removeFromCart: (productId: number) => Promise<void>;
     incrementCartItem: (productId: number) => Promise<void>;
@@ -58,6 +59,10 @@ export const useCartStore = create<CartState>()(
                     console.error(e);
                     return Promise.reject(e);
                 }
+            },
+
+            setCartId: (cartId: string) => {
+                set({ cartId, cart: [] });
             },
 
             addToCart: async (product: Product) => {

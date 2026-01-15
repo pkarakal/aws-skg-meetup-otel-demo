@@ -126,3 +126,16 @@ func (s *CartService) NewCart(ctx context.Context) (*model.Cart, error) {
 	return cart, nil
 
 }
+
+func (s *CartService) DeleteCart(ctx context.Context, cartID string) error {
+	childCtx, span := s.tracer.Start(ctx, "DeleteCart")
+	defer span.End()
+	err := s.repo.Delete(childCtx, cartID)
+	if err != nil {
+		s.logger.Error("Error deleting cart", zap.String("cartID", cartID), zap.Error(err))
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+		return err
+	}
+	return nil
+}

@@ -123,3 +123,20 @@ func (h *CartHandler) CreateCart(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	w.Write(msg)
 }
+
+func (h *CartHandler) DeleteCart(w http.ResponseWriter, r *http.Request) {
+	childCtx, span := trace.SpanFromContext(r.Context()).TracerProvider().Tracer("cart.handler").Start(r.Context(), "DeleteCart")
+	defer span.End()
+	cartID := r.PathValue("id")
+	w.Header().Add("Content-Type", "application/json")
+	err := h.cartService.DeleteCart(childCtx, cartID)
+	if err != nil {
+		h.logger.Error("Failed to delete cart", zap.String("id", cartID), zap.Error(err))
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	span.SetStatus(codes.Ok, "Successfully deleted the cart")
+	w.WriteHeader(http.StatusNoContent)
+}

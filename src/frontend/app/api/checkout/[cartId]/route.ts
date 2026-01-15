@@ -24,12 +24,16 @@ export async function POST(req: Request, { params }: { params: { cartId: string 
         }
 
         // Forward the request to your external API (server-side)
-        const response = await CheckoutGateway.placeOrder(order, cartId);
+        const result = await CheckoutGateway.placeOrder(order, cartId);
 
-        if (!response.ok || response.status > 400) {
+        if (!result.ok) {
             return NextResponse.json({error: 'Failed to complete the purchase'}, {status: 500});
         }
-        return NextResponse.json({message: "Successfully placed order"}, {status: 200});
+
+        return NextResponse.json({
+            message: "Successfully placed order",
+            new_cart_id: result.data?.new_cart_id
+        }, {status: 200});
     } catch (error) {
         return NextResponse.json({error: `Checkout failed: ${error}`}, {status: 500});
     }

@@ -20,5 +20,6 @@ func initRoutes(mux *http.ServeMux, s *handlers.CartHandler) {
 	mux.HandleFunc("GET /api/v1/cart/{id}", s.GetCart)
 	mux.HandleFunc("POST /api/v1/cart/{id}", s.AddToCart)
 	mux.HandleFunc("POST /api/v1/cart/{id}/empty", s.EmptyCart)
+	mux.HandleFunc("DELETE /api/v1/cart/{id}", s.DeleteCart)
 	mux.Handle("/", http.NotFoundHandler())
 }

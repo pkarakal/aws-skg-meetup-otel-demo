@@ -54,7 +54,7 @@ func (h *CheckoutHandler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Error("Failed to parse cart id", zap.Error(err))
 	}
-	err = h.checkoutService.PlaceOrder(childCtx, cartID, &item)
+	newCartId, err := h.checkoutService.PlaceOrder(childCtx, cartID, &item)
 	if err != nil {
 		h.logger.Error("Failed to place order ", zap.Int64("id", cartID), zap.Error(err))
 		span.SetStatus(codes.Error, err.Error())
@@ -62,6 +62,13 @@ func (h *CheckoutHandler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	response := models.PlaceOrderResponse{
+		Message:   "Successfully placed order",
+		NewCartId: newCartId,
+	}
+
 	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
 	span.SetStatus(codes.Ok, "Successfully placed Order")
 }

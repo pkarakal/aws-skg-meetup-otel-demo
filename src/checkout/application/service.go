@@ -35,18 +35,18 @@ type CheckoutService struct {
 	meter  metric.Meter
 }
 
-func (s *CheckoutService) PlaceOrder(ctx context.Context, cartId int64, order *models.PlaceOrderRequest) error {
+func (s *CheckoutService) PlaceOrder(ctx context.Context, cartId int64, order *models.PlaceOrderRequest) (*int64, error) {
 	childCtx, span := s.tracer.Start(ctx, "PlaceOrder")
 	defer span.End()
 	if order == nil {
 		s.logger.Error("Missing order request")
-		return errors.New("missing order request")
+		return nil, errors.New("missing order request")
 	}
 	childCtx = context.WithValue(childCtx, "postalCode", order.Address.PostalCode)
-	err := s.repo.PlaceOrder(childCtx, cartId)
+	newCartId, err := s.repo.PlaceOrder(childCtx, cartId)
 	if err != nil {
 		s.logger.Error("Error placing order", zap.Error(err))
-		return err
+		return nil, err
 	}
-	return nil
+	return newCartId, nil
 }

@@ -146,3 +146,22 @@ func (r *CartRepository) GenerateNextCartID(ctx context.Context) (*int64, error)
 	r.logger.Debug("Successfully generated next cart ID", zap.Int64("nextID", nextID))
 	return &nextID, nil
 }
+
+func (r *CartRepository) Delete(ctx context.Context, id string) error {
+	childCtx, span := r.tracer.Start(ctx, "Delete")
+	defer span.End()
+	start := time.Now()
+	err := r.client.Del(childCtx, id).Err()
+	cacheRequestDuration.Record(
+		childCtx,
+		time.Since(start).Milliseconds(),
+		metric.WithAttributes(attribute.String("operation", "delete")),
+	)
+	if err != nil {
+		r.logger.Error("Failed to delete cart from redis", zap.Error(err), zap.String("id", id))
+		span.SetStatus(codes.Error, "Failed to delete cart from redis")
+		span.RecordError(err)
+		return err
+	}
+	return nil
+}

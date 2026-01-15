@@ -6,7 +6,7 @@ import (
 )
 
 type CheckoutRepository interface {
-	PlaceOrder(context.Context, int64) error
+	PlaceOrder(context.Context, int64) (*int64, error)
 	GetShippingCost(ctx context.Context) (float64, error)
 	ChargeCard(context.Context, float64) error
 	ShipOrder(context.Context) error

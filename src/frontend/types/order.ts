@@ -20,3 +20,8 @@ export type CreditCard = {
     card_expiration_year: number;
     card_owner: string;
 }
+
+export type CheckoutResponse = {
+    message: string;
+    new_cart_id?: number;
+}
