@@ -2,11 +2,13 @@ import {create} from 'zustand'
 import {persist} from 'zustand/middleware';
 import {CartItems, Product} from "@/types/product";
 import {Cart} from "@/types/cart";
+import {useEffect, useState} from "react";
 
 interface CartState {
     cart: CartItems;
     cartId: string | null;
     createCart: () => Promise<void>;
+    setCartId: (cartId: string) => void;
     addToCart: (product: Product) => Promise<void>;
     removeFromCart: (productId: number) => Promise<void>;
     incrementCartItem: (productId: number) => Promise<void>;
@@ -14,11 +16,30 @@ interface CartState {
     clearCart: () => Promise<void>;
 }
 
+export function useCartHydration() {
+    const [hydrated, setHydrated] = useState(false);
+
+    useEffect(() => {
+        const unsubFinishHydration = useCartStore.persist.onFinishHydration(() => {
+            setHydrated(true);
+        });
+
+        if (useCartStore.persist.hasHydrated()) {
+            setHydrated(true);
+        }
+
+        return () => {
+            unsubFinishHydration();
+        };
+    }, []);
+
+    return hydrated;
+}
+
 export const useCartStore = create<CartState>()(
     persist((set) => ({
             cart: [],
             cartId: null,
-            cartUrl: undefined,
 
             createCart: async () => {
                 const {cartId} = useCartStore.getState();
@@ -38,6 +59,10 @@ export const useCartStore = create<CartState>()(
                     console.error(e);
                     return Promise.reject(e);
                 }
+            },
+
+            setCartId: (cartId: string) => {
+                set({ cartId, cart: [] });
             },
 
             addToCart: async (product: Product) => {
@@ -91,7 +116,7 @@ export const useCartStore = create<CartState>()(
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify(cart.filter(x => x.product_id == productId).at(0))
+                        body: JSON.stringify(cart.find(x => x.product_id === productId))
                     });
                     if (!res) {
                         return Promise.reject("Failed to increment cart item")
@@ -112,8 +137,9 @@ export const useCartStore = create<CartState>()(
                 if (!cartId) {
                     return Promise.reject()
                 }
-                const item = cart.filter(x => x.product_id === productId);
-                let body = {...item[0], product_id: productId, quantity: item[0].quantity - 1};
+                const item = cart.find(x => x.product_id === productId);
+                if (!item) return Promise.reject("Item not found in cart");
+                const body = {...item, product_id: productId, quantity: item.quantity - 1};
                 await fetch(`/api/cart/${cartId}`, {
                     method: 'POST',
                     headers: {
@@ -144,8 +170,9 @@ export const useCartStore = create<CartState>()(
                 if (!cartId) {
                     return Promise.reject()
                 }
-                const item = cart.filter(x => x.product_id === productId);
-                const body = {...item[0], quantity: 0}
+                const item = cart.find(x => x.product_id === productId);
+                if (!item) return Promise.reject("Item not found in cart");
+                const body = {...item, quantity: 0}
                 await fetch(`/api/cart/${cartId}`, {
                     method: 'POST',
                     headers: {
@@ -169,7 +196,8 @@ export const useCartStore = create<CartState>()(
             }
         }),
         {
-            name: 'cart-storage'
+            name: 'cart-storage',
+            skipHydration: true,
         }
     )
 );

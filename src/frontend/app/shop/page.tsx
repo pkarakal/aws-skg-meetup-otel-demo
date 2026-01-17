@@ -1,14 +1,10 @@
-import type {GetServerSideProps, InferGetServerSidePropsType} from 'next'
 import React from 'react';
 import CatalogGateway from '@/services/catalog'
 import {ProductCard} from '@/components/product/product-card';
-import {Products} from "@/types/product";
 
-export const revalidate = 60;
 export const dynamic = 'force-dynamic';
 
-
-const Shop: React.FC = async () => {
+const Shop = async () => {
     const products = await CatalogGateway.getProducts();
 
     return (

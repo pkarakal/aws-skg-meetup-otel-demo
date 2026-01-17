@@ -15,6 +15,7 @@ import (
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/cart"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/catalog"
+	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/payment"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/rabbitmq"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/handlers"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/router"
@@ -23,23 +24,24 @@ import (
 )
 
 func main() {
-	logger, undo := config.InitLogging(true)
-	defer logger.Sync()
-	defer undo()
-	c, err := config.LoadConfig()
-	if err != nil {
-		logger.Fatal("couldn't load configuration. Terminating", zap.Error(err))
-	}
-	logger.Debug("Got config", zap.Any("config", c))
-
+	logger := zap.NewNop()
 	telemetryKeys := []func(*telemetry.OTELProvider){
 		telemetry.ServiceName("checkout"),
 		telemetry.ServiceVersion("0.1.0"),
 		telemetry.ServiceEnvironment("demo"),
 		telemetry.ServiceHostName(),
 	}
+	c, err := config.LoadConfig()
+	if err != nil {
+		logger.Fatal("couldn't load configuration. Terminating", zap.Error(err))
+	}
 
-	tp, err := config.InitTelemetry(logger, &c.TelemetryConfig, telemetryKeys)
+	tp, err := config.InitTelemetry(logger, c.TelemetryConfig, true, telemetryKeys)
+	if err != nil {
+		logger.Error("Failed to initialize telemetry provider", zap.Error(err))
+		tp = telemetry.NewNoOpProvider(nil, false)
+	}
+	logger = tp.Logger()
 	if err != nil {
 		logger.Error("couldn't initialize telemetry", zap.Error(err))
 	}
@@ -63,6 +65,11 @@ func run(ctx context.Context, c *config.Configuration) error {
 		logger.Error("Failed to create catalog client", zap.Error(err))
 		return err
 	}
+	paymentConf, err := payment.NewPaymentConfig(fmt.Sprintf("%s://%s:%d%s", c.PaymentConfig.Protocol, c.PaymentConfig.Server, c.PaymentConfig.Port, c.PaymentConfig.Path), c.PaymentConfig.Timeout)
+	if err != nil {
+		logger.Error("Failed to create payment client", zap.Error(err))
+		return err
+	}
 	rabbitmqConf := rabbitmq.Config{
 		Port:     c.RabbitMQConfig.Port,
 		Host:     c.RabbitMQConfig.Host,
@@ -78,6 +85,10 @@ func run(ctx context.Context, c *config.Configuration) error {
 		Logger:            logger.With(zap.String("subsystem", "catalog.client")),
 		TelemetryProvider: tp,
 	})
+	paymentClient := paymentConf.NewPaymentClient(payment.ClientOptions{
+		Logger:            logger.With(zap.String("subsystem", "payment.client")),
+		TelemetryProvider: tp,
+	})
 	rabbitmqClient, err := rabbitmqConf.NewAMQPClient(rabbitmq.ClientOptions{
 		Logger:            logger.With(zap.String("subsystem", "rabbitmq.client")),
 		TelemetryProvider: tp,
@@ -86,7 +97,7 @@ func run(ctx context.Context, c *config.Configuration) error {
 		logger.Error("Failed to create rabbitmq client", zap.Error(err))
 		return err
 	}
-	checkoutRepo := infrastructure.NewCheckoutRepository(&cartClient, &catalogClient, rabbitmqClient, logger.With(zap.String("subsystem", "checkout.repository")), tp)
+	checkoutRepo := infrastructure.NewCheckoutRepository(&cartClient, &catalogClient, &paymentClient, rabbitmqClient, logger.With(zap.String("subsystem", "checkout.repository")), tp)
 	checkoutSvc := application.NewCheckoutService(checkoutRepo, logger.With(zap.String("subsystem", "checkout.service")), tp)
 	checkoutHandler := handlers.NewCheckoutHandler(checkoutSvc, logger.With(zap.String("subsystem", "checkout.handler")), tp)
 
@@ -111,6 +122,9 @@ func run(ctx context.Context, c *config.Configuration) error {
 		defer cancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
 			logger.Error("error shutting down http server", zap.Error(err))
+		}
+		if err := tp.Shutdown(shutdownCtx); err != nil {
+			logger.Error("failed to flush final telemetry data")
 		}
 	}()
 	wg.Wait()

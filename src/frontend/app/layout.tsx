@@ -5,6 +5,7 @@ import {ThemeProvider} from "@/components/ThemeProvider";
 import Navbar from "@/components/Navbar";
 import React from "react";
 import {Toaster} from "@/components/ui/sonner";
+import {StoreHydration} from "@/components/StoreHydration";
 
 const inter = Inter({subsets: ["latin"], variable: "--font-sans"});
 
@@ -15,8 +16,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({children}: Readonly<{children: React.ReactNode;}>) {
     return (
-        <html lang="en">
+        <html lang="en" suppressHydrationWarning>
         <body className={`${inter.variable}`}>
+        <StoreHydration/>
         <div className="grid h-screen grid-rows-[auto,1fr]">
             <ThemeProvider
                 attribute="class"
@@ -24,7 +26,7 @@ export default function RootLayout({children}: Readonly<{children: React.ReactNo
                 enableSystem
                 disableTransitionOnChange
             >
-                <main className="overflow-y-scroll">
+                <main className="overflow-y-scroll bg-background">
                     <Navbar/>
                     {children}
                 </main>
@@ -33,5 +35,5 @@ export default function RootLayout({children}: Readonly<{children: React.ReactNo
         </div>
         </body>
         </html>
-);
+    );
 }

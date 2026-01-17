@@ -111,15 +111,15 @@ func (c *Client) GetCart(ctx context.Context, cartId int64) (*models.Cart, error
 	start := time.Now()
 	resp, err := c.client.Do(req)
 	if err != nil {
-		c.logger.Error("Failed to initiate request", zap.Error(err), zap.Int64("cartID", cartId), zap.String("url", url))
+		c.logger.Error("Failed to initiate request", zap.Error(err), zap.Int64("cartID", cartId), zap.String("url", url), zap.Any("context", childCtx))
 		return nil, err
 	}
 	requestDuration.Record(childCtx, time.Since(start).Milliseconds())
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 400 {
-		c.logger.Error("Received an error from the server when requesting cart", zap.Error(err))
-		span.SetStatus(codes.Error, "Received an error from the server when requestingcart")
+		c.logger.Error("Received an error from the server when requesting cart", zap.Error(err), zap.Any("context", childCtx))
+		span.SetStatus(codes.Error, "Received an error from the server when requesting cart")
 		span.RecordError(err)
 		requestFail.Add(childCtx, 1)
 		return nil, err
@@ -127,7 +127,7 @@ func (c *Client) GetCart(ctx context.Context, cartId int64) (*models.Cart, error
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.logger.Error("Failed to read the response body from the cart response", zap.Error(err))
+		c.logger.Error("Failed to read the response body from the cart response", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Failed to read the response body from the cart response")
 		span.RecordError(err)
 		requestFail.Add(childCtx, 1)
@@ -137,7 +137,86 @@ func (c *Client) GetCart(ctx context.Context, cartId int64) (*models.Cart, error
 	var cart models.Cart
 	err = json.Unmarshal(body, &cart)
 	if err != nil {
-		c.logger.Error("Failed to parse response from cart service", zap.Error(err))
+		c.logger.Error("Failed to parse response from cart service", zap.Error(err), zap.Any("context", childCtx))
+		span.SetStatus(codes.Error, "Failed to parse response from cart service")
+		span.RecordError(err)
+		requestFail.Add(childCtx, 1)
+		return nil, err
+	}
+
+	requestSuccess.Add(childCtx, 1)
+	return &cart, nil
+}
+
+func (c *Client) DeleteCart(ctx context.Context, cartId int64) error {
+	childCtx, span := c.tracer.Start(ctx, "DeleteCart")
+	defer span.End()
+	url := fmt.Sprintf("%s/cart/%d", c.config.URL, cartId)
+
+	req, _ := http.NewRequestWithContext(childCtx, "DELETE", url, nil)
+
+	start := time.Now()
+	resp, err := c.client.Do(req)
+	if err != nil {
+		c.logger.Error("Failed to initiate delete cart request", zap.Error(err), zap.Int64("cartID", cartId), zap.Any("context", childCtx))
+		span.SetStatus(codes.Error, "Failed to delete cart")
+		span.RecordError(err)
+		requestFail.Add(childCtx, 1)
+		return err
+	}
+	requestDuration.Record(childCtx, time.Since(start).Milliseconds())
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		c.logger.Error("Received an error from the server when deleting cart", zap.Int("status", resp.StatusCode), zap.Any("context", childCtx))
+		span.SetStatus(codes.Error, "Received an error from the server when deleting cart")
+		requestFail.Add(childCtx, 1)
+		return fmt.Errorf("failed to delete cart: status %d", resp.StatusCode)
+	}
+
+	requestSuccess.Add(childCtx, 1)
+	return nil
+}
+
+func (c *Client) CreateCart(ctx context.Context) (*models.Cart, error) {
+	childCtx, span := c.tracer.Start(ctx, "CreateCart")
+	defer span.End()
+	url := fmt.Sprintf("%s/cart", c.config.URL)
+
+	req, _ := http.NewRequestWithContext(childCtx, "POST", url, nil)
+
+	start := time.Now()
+	resp, err := c.client.Do(req)
+	if err != nil {
+		c.logger.Error("Failed to initiate create cart request", zap.Error(err), zap.Any("context", childCtx))
+		span.SetStatus(codes.Error, "Failed to create cart")
+		span.RecordError(err)
+		requestFail.Add(childCtx, 1)
+		return nil, err
+	}
+	requestDuration.Record(childCtx, time.Since(start).Milliseconds())
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		c.logger.Error("Received an error from the server when creating cart", zap.Int("status", resp.StatusCode), zap.Any("context", childCtx))
+		span.SetStatus(codes.Error, "Received an error from the server when creating cart")
+		requestFail.Add(childCtx, 1)
+		return nil, fmt.Errorf("failed to create cart: status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Error("Failed to read the response body from the cart creation response", zap.Error(err), zap.Any("context", childCtx))
+		span.SetStatus(codes.Error, "Failed to read the response body")
+		span.RecordError(err)
+		requestFail.Add(childCtx, 1)
+		return nil, err
+	}
+
+	var cart models.Cart
+	err = json.Unmarshal(body, &cart)
+	if err != nil {
+		c.logger.Error("Failed to parse response from cart service", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Failed to parse response from cart service")
 		span.RecordError(err)
 		requestFail.Add(childCtx, 1)

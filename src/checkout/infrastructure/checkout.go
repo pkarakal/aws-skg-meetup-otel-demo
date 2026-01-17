@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/cart"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/catalog"
+	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/payment"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/rabbitmq"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/models"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/telemetry"
@@ -47,6 +49,7 @@ var (
 type CheckoutRepository struct {
 	cartClient     *cart.Client
 	catalogClient  *catalog.Client
+	paymentClient  *payment.Client
 	rabbitmqClient *rabbitmq.AMQP
 
 	logger *zap.Logger
@@ -54,7 +57,7 @@ type CheckoutRepository struct {
 	meter  metric.Meter
 }
 
-func NewCheckoutRepository(cart *cart.Client, catalog *catalog.Client, rabbitmq *rabbitmq.AMQP, logger *zap.Logger, tp telemetry.Provider) *CheckoutRepository {
+func NewCheckoutRepository(cart *cart.Client, catalog *catalog.Client, payment *payment.Client, rabbitmq *rabbitmq.AMQP, logger *zap.Logger, tp telemetry.Provider) *CheckoutRepository {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -62,6 +65,7 @@ func NewCheckoutRepository(cart *cart.Client, catalog *catalog.Client, rabbitmq 
 	repo := &CheckoutRepository{
 		cartClient:     cart,
 		catalogClient:  catalog,
+		paymentClient:  payment,
 		rabbitmqClient: rabbitmq,
 		logger:         logger,
 		tracer:         tp.Tracer().Tracer("checkout.repository"),
@@ -140,17 +144,17 @@ func (r *CheckoutRepository) initMetrics() {
 	}
 }
 
-func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error {
+func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64, card *models.CreditCard) (*int64, error) {
 	childCtx, span := r.tracer.Start(ctx, "PlaceOrder")
 	defer span.End()
 
 	userCart, err := r.cartClient.GetCart(childCtx, cartId)
-	if err != nil {
-		r.logger.Error("error getting cart from cart service", zap.Error(err))
+	if err != nil || userCart == nil {
+		r.logger.Error("error getting cart from cart service", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "error getting cart from cart service")
 		span.RecordError(err)
 		failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "CART_FAILURE")))
-		return CartNotFound
+		return nil, CartNotFound
 	}
 
 	products := make([]*models.Inventory, 0, len(userCart.Items))
@@ -158,63 +162,81 @@ func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) error
 	for _, item := range userCart.Items {
 		product, err := r.catalogClient.GetProductInventory(childCtx, item.ProductID)
 		if err != nil {
-			r.logger.Error("error getting inventory from catalog service", zap.Error(err))
+			r.logger.Error("error getting inventory from catalog service", zap.Error(err), zap.Any("context", childCtx))
 			span.SetStatus(codes.Error, "error getting inventory from catalog service")
 			span.RecordError(err)
 			failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "CATALOG_FAILURE")))
-			return ProductNotFound
+			return nil, ProductNotFound
 		}
-		if product.Quantity <= 0 {
-			r.logger.Error("quantity 0 is not valid", zap.Int64("product_id", item.ProductID))
+		if product == nil || product.Quantity <= 0 {
+			r.logger.Error("quantity 0 is not valid", zap.Int64("product_id", item.ProductID), zap.Any("context", childCtx))
 			span.SetStatus(codes.Error, "quantity 0 is not valid")
 			span.RecordError(errors.New("quantity 0 is not valid"))
 			failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "INSUFFICIENT_INVENTORY")))
-			return InsufficientInventory
+			return nil, InsufficientInventory
 		}
 		delta := item.CalculatePriceDelta(product)
 		priceDelta.Record(childCtx, delta, metric.WithAttributes(attribute.Int("productId", product.Product.Id)))
 		if delta > 5.0 {
-			r.logger.Warn("The pricing delta is too high and you're losing money")
+			r.logger.Warn("The pricing delta is too high and you're losing money", zap.Any("context", childCtx))
 		}
 		products = append(products, product)
 	}
 
 	cost, err := r.GetShippingCost(childCtx)
 	if err != nil {
-		r.logger.Error("error getting shipping cost", zap.Error(err))
+		r.logger.Error("error getting shipping cost", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "error getting shipping cost")
 		span.RecordError(err)
 		failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "SHIPPING_COST_FAILURE")))
-		return ShippingCostCalculationFailed
+		return nil, ShippingCostCalculationFailed
 	}
-	err = r.ChargeCard(childCtx, userCart.Total+cost)
+	err = r.ChargeCard(childCtx, userCart.Total+cost, card)
 	if err != nil {
-		r.logger.Error("error charging card", zap.Error(err))
+		r.logger.Error("error charging card", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "error charging card")
 		span.RecordError(err)
 		failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "CARD_DECLINED")))
-		return CardDeclined
+		return nil, CardDeclined
 	}
 
 	err = r.ShipOrder(childCtx)
 	if err != nil {
-		r.logger.Error("error shipping order", zap.Error(err))
+		r.logger.Error("error shipping order", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "error shipping order")
 		span.RecordError(err)
 		failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "SHIPPING_LABEL_FAILURE")))
-		return ShippingLabelNotIssued
+		return nil, ShippingLabelNotIssued
 	}
 
 	err = r.SendConfirmation(childCtx, userCart)
 	if err != nil {
-		r.logger.Error("error sending confirmation", zap.Error(err))
+		r.logger.Error("error sending confirmation", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "error sending confirmation")
 		span.RecordError(err)
 		failedOrders.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", "INVENTORY_UPDATE_FAILURE")))
-		return InventoryUpdateFailure
+		return nil, InventoryUpdateFailure
 	}
+
+	// Delete old cart
+	err = r.cartClient.DeleteCart(childCtx, cartId)
+	if err != nil {
+		r.logger.Warn("Failed to delete old cart, continuing anyway", zap.Error(err), zap.Int64("cartId", cartId), zap.Any("context", childCtx))
+	}
+
+	// Create new cart for the user
+	newCart, err := r.cartClient.CreateCart(childCtx)
+	if err != nil {
+		r.logger.Error("Failed to create new cart after checkout", zap.Error(err), zap.Any("context", childCtx))
+		span.SetStatus(codes.Error, "error creating new cart")
+		span.RecordError(err)
+		// Still count as successful order but return nil cart
+		successfulOrders.Add(childCtx, 1)
+		return nil, nil
+	}
+
 	successfulOrders.Add(childCtx, 1)
-	return nil
+	return &newCart.ID, nil
 }
 
 func (r *CheckoutRepository) GetShippingCost(ctx context.Context) (float64, error) {
@@ -230,21 +252,38 @@ func (r *CheckoutRepository) GetShippingCost(ctx context.Context) (float64, erro
 	return 0, errors.New("error getting shipping cost")
 }
 
-func (r *CheckoutRepository) ChargeCard(ctx context.Context, amount float64) error {
+func (r *CheckoutRepository) ChargeCard(ctx context.Context, amount float64, card *models.CreditCard) error {
 	childCtx, span := r.tracer.Start(ctx, "ChargeCard")
 	defer span.End()
-	time.Sleep(800 * time.Millisecond)
-	if rand.Float64() > 0.2 {
-		r.logger.Info("Successfully charged card", zap.Float64("amount", amount))
+
+	paymentResp, err := r.paymentClient.ProcessPayment(childCtx, amount, card)
+	if err != nil {
+		r.logger.Error("Failed to call payment service", zap.Error(err), zap.Float64("amount", amount), zap.Any("context", childCtx))
+		span.SetStatus(codes.Error, "Failed to call payment service")
+		span.RecordError(err)
+		cardsDeclined.Add(childCtx, 1)
+		return err
+	}
+
+	span.SetAttributes(attribute.String("transaction_id", paymentResp.TransactionID))
+
+	if paymentResp.Status == "SUCCESS" {
+		r.logger.Info("Successfully charged card", zap.Float64("amount", amount), zap.String("transaction_id", paymentResp.TransactionID), zap.Any("context", childCtx))
 		cardsCharged.Add(childCtx, 1)
 		income.Record(childCtx, amount)
 		span.SetStatus(codes.Ok, "Successfully charged card")
 		return nil
 	}
-	r.logger.Error("Failed to charge card", zap.Float64("amount", amount))
-	span.SetStatus(codes.Error, "Failed to charge card")
+
+	failureReason := "unknown"
+	if paymentResp.FailureReason != nil {
+		failureReason = *paymentResp.FailureReason
+	}
+	r.logger.Error("Payment declined", zap.Float64("amount", amount), zap.String("reason", failureReason), zap.String("message", paymentResp.Message), zap.Any("context", childCtx))
+	span.SetStatus(codes.Error, "Payment declined")
+	span.SetAttributes(attribute.String("failure_reason", failureReason))
 	cardsDeclined.Add(childCtx, 1)
-	return errors.New("error charging card")
+	return fmt.Errorf("payment declined: %s", paymentResp.Message)
 }
 
 func (r *CheckoutRepository) ShipOrder(ctx context.Context) error {
@@ -252,12 +291,12 @@ func (r *CheckoutRepository) ShipOrder(ctx context.Context) error {
 	defer span.End()
 	time.Sleep(30 * time.Millisecond)
 	if rand.Float64() > 0.2 {
-		r.logger.Info("Successfully created shipping label", zap.String("postalCode", childCtx.Value("postalCode").(string)))
+		r.logger.Info("Successfully created shipping label", zap.String("postalCode", childCtx.Value("postalCode").(string)), zap.Any("context", childCtx))
 		span.SetAttributes(attribute.String("postalCode", childCtx.Value("postalCode").(string)))
 		labelsCreated.Add(childCtx, 1, metric.WithAttributes(attribute.String("postalCode", childCtx.Value("postalCode").(string))))
 		return nil
 	}
-	r.logger.Error("Failed to create shipping label")
+	r.logger.Error("Failed to create shipping label", zap.Any("context", childCtx))
 	span.SetStatus(codes.Error, "Failed to create shipping label")
 	labelsFailed.Add(childCtx, 1)
 	return errors.New("error shipping order")
@@ -270,19 +309,19 @@ func (r *CheckoutRepository) SendConfirmation(ctx context.Context, cart *models.
 		updateMsg := cartItem.IntoInventory()
 		msg, err := json.Marshal(updateMsg)
 		if err != nil {
-			r.logger.Error("error marshalling update message", zap.Error(err))
+			r.logger.Error("error marshalling update message", zap.Error(err), zap.Any("context", childCtx))
 			span.SetStatus(codes.Error, "error marshalling update message")
 			span.RecordError(err)
 			return err
 		}
 		err = r.rabbitmqClient.PublishMessage(childCtx, msg, InventoryUpdateRk)
 		if err != nil {
-			r.logger.Error("error publishing update message", zap.Error(err))
+			r.logger.Error("error publishing update message", zap.Error(err), zap.Any("context", childCtx))
 			span.SetStatus(codes.Error, "error publishing update message")
 			span.RecordError(err)
 			return err
 		}
 	}
-	r.logger.Debug("Successfully sent inventory update messages")
+	r.logger.Debug("Successfully sent inventory update messages", zap.Any("context", childCtx))
 	return nil
 }

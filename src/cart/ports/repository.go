@@ -10,4 +10,5 @@ type CartRepository interface {
 	Save(ctx context.Context, cart model.Cart) error
 	GetByID(ctx context.Context, id string) (*model.Cart, error)
 	GenerateNextCartID(ctx context.Context) (*int64, error)
+	Delete(ctx context.Context, id string) error
 }

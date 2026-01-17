@@ -22,3 +22,8 @@ type CreditCard struct {
 	CardExpirationYear  int32  `json:"card_expiration_year"`
 	CardOwner           string `json:"card_owner"`
 }
+
+type PlaceOrderResponse struct {
+	Message   string `json:"message"`
+	NewCartId *int64 `json:"new_cart_id,omitempty"`
+}

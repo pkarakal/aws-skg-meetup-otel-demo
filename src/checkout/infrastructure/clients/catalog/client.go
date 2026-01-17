@@ -111,14 +111,14 @@ func (c *Client) GetProduct(ctx context.Context, productId int64) (*models.Produ
 	start := time.Now()
 	resp, err := c.client.Do(req)
 	if err != nil {
-		c.logger.Error("Failed to initiate request", zap.Error(err), zap.Int64("catalogID", productId), zap.String("url", url))
+		c.logger.Error("Failed to initiate request", zap.Error(err), zap.Int64("catalogID", productId), zap.String("url", url), zap.Any("context", childCtx))
 		return nil, err
 	}
 	requestDuration.Record(childCtx, time.Since(start).Milliseconds())
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 400 {
-		c.logger.Error("Received an error from the server when requesting product", zap.Error(err))
+		c.logger.Error("Received an error from the server when requesting product", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Received an error from the server when requesting catalog")
 		span.RecordError(err)
 		requestFail.Add(childCtx, 1)
@@ -127,7 +127,7 @@ func (c *Client) GetProduct(ctx context.Context, productId int64) (*models.Produ
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.logger.Error("Failed to read the response body from the catalog response", zap.Error(err))
+		c.logger.Error("Failed to read the response body from the catalog response", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Failed to read the response body from the catalog response")
 		span.RecordError(err)
 		requestFail.Add(childCtx, 1)
@@ -137,7 +137,7 @@ func (c *Client) GetProduct(ctx context.Context, productId int64) (*models.Produ
 	var product models.Product
 	err = json.Unmarshal(body, &product)
 	if err != nil {
-		c.logger.Error("Failed to parse response from catalog service", zap.Error(err))
+		c.logger.Error("Failed to parse response from catalog service", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Failed to parse response from catalog service")
 		span.RecordError(err)
 		requestFail.Add(childCtx, 1)
@@ -158,14 +158,14 @@ func (c *Client) GetProductInventory(ctx context.Context, productId int64) (*mod
 	start := time.Now()
 	resp, err := c.client.Do(req)
 	if err != nil {
-		c.logger.Error("Failed to initiate request", zap.Error(err), zap.Int64("catalogID", productId), zap.String("url", url))
+		c.logger.Error("Failed to initiate request", zap.Error(err), zap.Int64("catalogID", productId), zap.String("url", url), zap.Any("context", childCtx))
 		return nil, err
 	}
 	requestDuration.Record(childCtx, time.Since(start).Milliseconds())
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 400 {
-		c.logger.Error("Received an error from the server when requesting product inventory", zap.Error(err))
+		c.logger.Error("Received an error from the server when requesting product inventory", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Received an error from the server when requesting product inventory")
 		span.RecordError(err)
 		requestFail.Add(childCtx, 1)
@@ -174,7 +174,7 @@ func (c *Client) GetProductInventory(ctx context.Context, productId int64) (*mod
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.logger.Error("Failed to read the response body from the catalog response", zap.Error(err))
+		c.logger.Error("Failed to read the response body from the catalog response", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Failed to read the response body from the inventory response")
 		span.RecordError(err)
 		requestFail.Add(childCtx, 1)
@@ -184,7 +184,7 @@ func (c *Client) GetProductInventory(ctx context.Context, productId int64) (*mod
 	var inventory models.Inventory
 	err = json.Unmarshal(body, &inventory)
 	if err != nil {
-		c.logger.Error("Failed to parse response from catalog service", zap.Error(err))
+		c.logger.Error("Failed to parse response from catalog service", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "Failed to parse response from catalog service")
 		span.RecordError(err)
 		requestFail.Add(childCtx, 1)

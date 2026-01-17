@@ -7,7 +7,7 @@ const {CATALOG_SERVICE_ADDR = ''} = process.env;
 
 const CatalogGateway = () => ({
     getProducts: async(): Promise<Products> => {
-        return await trace
+        return trace
             .getTracer("frontend.catalog.gateway")
             .startActiveSpan("getProducts", async(span) => {
                 try {
@@ -17,10 +17,13 @@ const CatalogGateway = () => ({
                             'Content-Type': 'application/json'
                         }
                     });
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch products: ${response.status}`);
+                    }
                     return await response.json() as Products
                 } catch (e) {
-                    console.error("Failed to get all products")
-                    return Promise.reject()
+                    console.error("Failed to get all products", e);
+                    throw e;
                 }
                 finally {
                     span.end();

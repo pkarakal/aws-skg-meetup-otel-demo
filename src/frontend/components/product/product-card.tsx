@@ -1,6 +1,6 @@
 "use client";
 import {Card, CardTitle, CardDescription, CardHeader, CardFooter} from '@/components/ui/card';
-import {useCartStore} from "@/stores/cart";
+import {useCartStore, useCartHydration} from "@/stores/cart";
 import {Product} from "@/types/product";
 import Image from "next/image";
 import {IncrementButtons} from "@/components/IncrementButtons";
@@ -14,7 +14,8 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({product}) => {
     const {cart} = useCartStore();
-    const cartItem = cart.find((item) => item.product_id === product.id);
+    const isHydrated = useCartHydration();
+    const cartItem = isHydrated ? cart.find((item) => item.product_id === product.id) : undefined;
 
     return (
         <Card className="p-4">
@@ -22,8 +23,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({product}) => {
                 <Image
                     src={product.image.url}
                     alt={product.name}
-                    layout="fill"
-                    objectFit="cover"
+                    fill
+                    style={{objectFit: "cover"}}
                     className="rounded-t-lg"
                 />
             </CardHeader>
@@ -32,13 +33,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({product}) => {
             <CardDescription>{product.description}</CardDescription>
             <p className="text-lg font-semibold mt-2">${product.price.toFixed(2)}</p>
             <CardFooter>
-                {cartItem ?
-                    (
-                        <IncrementButtons product={product} quantity={cartItem.quantity}/>
-                    ) : (
-                        <AddToCartButtonComponent product={product}/>
-                    )}
-
+                {cartItem ? (
+                    <IncrementButtons product={product} quantity={cartItem.quantity}/>
+                ) : (
+                    <AddToCartButtonComponent product={product}/>
+                )}
             </CardFooter>
         </Card>
     );
