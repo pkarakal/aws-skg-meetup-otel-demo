@@ -88,14 +88,14 @@ export const CartDrawer: React.FC = () => {
                                 <Separator />
                                 <CartSummary subtotal={subtotal} />
 
-                                <SheetFooter className="flex-col gap-2 sm:flex-col">
+                                <SheetFooter className="flex-col gap-2">
                                     <Button asChild size="lg" className="w-full">
                                         <Link href="/checkout" onClick={() => setOpen(false)}>
                                             Proceed to Checkout
                                         </Link>
                                     </Button>
                                     <SheetClose asChild className="w-full">
-                                        <Button variant="outline" size="lg" className="w-full">
+                                        <Button variant="outline" size="lg">
                                             <Link href="/cart">View Full Cart</Link>
                                         </Button>
                                     </SheetClose>
