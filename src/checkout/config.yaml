@@ -14,6 +14,13 @@ cart:
   path: "/api/v1"
   timeout: 3
 
+payment:
+  protocol: http
+  server: localhost
+  port: 8000
+  path: ""
+  timeout: 10
+
 rabbitmq:
   host: localhost
   port: 5672

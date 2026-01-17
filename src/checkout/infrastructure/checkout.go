@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/cart"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/catalog"
+	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/payment"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/infrastructure/clients/rabbitmq"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/models"
 	"github.com/pkarakal/aws-skg-meetup-otel-demo/src/checkout/telemetry"
@@ -47,6 +49,7 @@ var (
 type CheckoutRepository struct {
 	cartClient     *cart.Client
 	catalogClient  *catalog.Client
+	paymentClient  *payment.Client
 	rabbitmqClient *rabbitmq.AMQP
 
 	logger *zap.Logger
@@ -54,7 +57,7 @@ type CheckoutRepository struct {
 	meter  metric.Meter
 }
 
-func NewCheckoutRepository(cart *cart.Client, catalog *catalog.Client, rabbitmq *rabbitmq.AMQP, logger *zap.Logger, tp telemetry.Provider) *CheckoutRepository {
+func NewCheckoutRepository(cart *cart.Client, catalog *catalog.Client, payment *payment.Client, rabbitmq *rabbitmq.AMQP, logger *zap.Logger, tp telemetry.Provider) *CheckoutRepository {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -62,6 +65,7 @@ func NewCheckoutRepository(cart *cart.Client, catalog *catalog.Client, rabbitmq 
 	repo := &CheckoutRepository{
 		cartClient:     cart,
 		catalogClient:  catalog,
+		paymentClient:  payment,
 		rabbitmqClient: rabbitmq,
 		logger:         logger,
 		tracer:         tp.Tracer().Tracer("checkout.repository"),
@@ -140,7 +144,7 @@ func (r *CheckoutRepository) initMetrics() {
 	}
 }
 
-func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) (*int64, error) {
+func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64, card *models.CreditCard) (*int64, error) {
 	childCtx, span := r.tracer.Start(ctx, "PlaceOrder")
 	defer span.End()
 
@@ -187,7 +191,7 @@ func (r *CheckoutRepository) PlaceOrder(ctx context.Context, cartId int64) (*int
 		failedOrders.Add(childCtx, 1, metric.WithAttributes(attribute.String("reason", "SHIPPING_COST_FAILURE")))
 		return nil, ShippingCostCalculationFailed
 	}
-	err = r.ChargeCard(childCtx, userCart.Total+cost)
+	err = r.ChargeCard(childCtx, userCart.Total+cost, card)
 	if err != nil {
 		r.logger.Error("error charging card", zap.Error(err), zap.Any("context", childCtx))
 		span.SetStatus(codes.Error, "error charging card")
@@ -248,21 +252,38 @@ func (r *CheckoutRepository) GetShippingCost(ctx context.Context) (float64, erro
 	return 0, errors.New("error getting shipping cost")
 }
 
-func (r *CheckoutRepository) ChargeCard(ctx context.Context, amount float64) error {
+func (r *CheckoutRepository) ChargeCard(ctx context.Context, amount float64, card *models.CreditCard) error {
 	childCtx, span := r.tracer.Start(ctx, "ChargeCard")
 	defer span.End()
-	time.Sleep(800 * time.Millisecond)
-	if rand.Float64() > 0.2 {
-		r.logger.Info("Successfully charged card", zap.Float64("amount", amount), zap.Any("context", childCtx))
+
+	paymentResp, err := r.paymentClient.ProcessPayment(childCtx, amount, card)
+	if err != nil {
+		r.logger.Error("Failed to call payment service", zap.Error(err), zap.Float64("amount", amount), zap.Any("context", childCtx))
+		span.SetStatus(codes.Error, "Failed to call payment service")
+		span.RecordError(err)
+		cardsDeclined.Add(childCtx, 1)
+		return err
+	}
+
+	span.SetAttributes(attribute.String("transaction_id", paymentResp.TransactionID))
+
+	if paymentResp.Status == "SUCCESS" {
+		r.logger.Info("Successfully charged card", zap.Float64("amount", amount), zap.String("transaction_id", paymentResp.TransactionID), zap.Any("context", childCtx))
 		cardsCharged.Add(childCtx, 1)
 		income.Record(childCtx, amount)
 		span.SetStatus(codes.Ok, "Successfully charged card")
 		return nil
 	}
-	r.logger.Error("Failed to charge card", zap.Float64("amount", amount), zap.Any("context", childCtx))
-	span.SetStatus(codes.Error, "Failed to charge card")
+
+	failureReason := "unknown"
+	if paymentResp.FailureReason != nil {
+		failureReason = *paymentResp.FailureReason
+	}
+	r.logger.Error("Payment declined", zap.Float64("amount", amount), zap.String("reason", failureReason), zap.String("message", paymentResp.Message), zap.Any("context", childCtx))
+	span.SetStatus(codes.Error, "Payment declined")
+	span.SetAttributes(attribute.String("failure_reason", failureReason))
 	cardsDeclined.Add(childCtx, 1)
-	return errors.New("error charging card")
+	return fmt.Errorf("payment declined: %s", paymentResp.Message)
 }
 
 func (r *CheckoutRepository) ShipOrder(ctx context.Context) error {

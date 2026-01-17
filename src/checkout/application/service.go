@@ -43,7 +43,7 @@ func (s *CheckoutService) PlaceOrder(ctx context.Context, cartId int64, order *m
 		return nil, errors.New("missing order request")
 	}
 	childCtx = context.WithValue(childCtx, "postalCode", order.Address.PostalCode)
-	newCartId, err := s.repo.PlaceOrder(childCtx, cartId)
+	newCartId, err := s.repo.PlaceOrder(childCtx, cartId, &order.CreditCard)
 	if err != nil {
 		s.logger.Error("Error placing order", zap.Error(err), zap.Any("context", childCtx))
 		return nil, err

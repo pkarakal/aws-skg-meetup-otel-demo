@@ -21,6 +21,7 @@ type Configuration struct {
 	Port            uint64          `mapstructure:"port"`
 	CartConfig      ClientOptions   `mapstructure:"cart"`
 	CatalogConfig   ClientOptions   `mapstructure:"catalog"`
+	PaymentConfig   ClientOptions   `mapstructure:"payment"`
 	RabbitMQConfig  RabbitMQOptions `mapstructure:"rabbitmq"`
 	TelemetryConfig TelemetryConfig `mapstructure:"telemetry"`
 }
