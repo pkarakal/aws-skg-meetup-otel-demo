@@ -1,14 +1,47 @@
-import React from 'react';
+import { HeroSection } from "@/components/landing/HeroSection";
+import { ValuePropositions } from "@/components/landing/ValuePropositions";
+import { BrandStory } from "@/components/landing/BrandStory";
+import { Testimonials } from "@/components/landing/Testimonials";
+import { NewsletterSignup } from "@/components/landing/NewsletterSignup";
+import { CTABanner } from "@/components/landing/CTABanner";
+import FeaturedProducts from "@/components/landing/FeaturedProducts";
+import CatalogGateway from "@/services/catalog";
+import {Products} from "@/types/product";
 
-const Home: React.FC = () => {
+export const dynamic = 'force-dynamic';
+
+export default async function Home() {
+    let products: Products = [];
+
+    try {
+        const allProducts = await CatalogGateway.getProducts();
+        products = allProducts.slice(0, 3);
+    } catch {
+        products = [];
+    }
+
     return (
-        <div className="container mx-auto p-4 h-full">
-            <h1 className="text-4xl font-bold">Welcome to Telescope Shop</h1>
-            <p className="mt-4 text-lg">
-                Discover the universe with our premium telescopes.
-            </p>
-        </div>
+        <main>
+            <HeroSection />
+            <ValuePropositions />
+            {products.length === 0 ? (
+                <section className="py-16 md:py-24 bg-muted/30">
+                    <div className="container mx-auto px-4">
+                        <h2 className="text-2xl md:text-3xl font-bold text-center mb-4">
+                            Featured Telescopes
+                        </h2>
+                        <p className="text-muted-foreground text-center mb-12">
+                            Unable to load products. Please try again later.
+                        </p>
+                    </div>
+                </section>
+            ) : (
+                <FeaturedProducts products={products} />
+            )}
+            <BrandStory />
+            <Testimonials />
+            <NewsletterSignup />
+            <CTABanner />
+        </main>
     );
-};
-
-export default Home;
+}

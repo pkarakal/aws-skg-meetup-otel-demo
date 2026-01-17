@@ -26,7 +26,7 @@ export default function RootLayout({children}: Readonly<{children: React.ReactNo
                 enableSystem
                 disableTransitionOnChange
             >
-                <main className="overflow-y-scroll">
+                <main className="overflow-y-scroll bg-background">
                     <Navbar/>
                     {children}
                 </main>

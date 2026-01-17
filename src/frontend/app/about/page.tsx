@@ -1,15 +1,19 @@
-import React from 'react';
+import { AboutHero } from "@/components/about/AboutHero";
+import { OurMission } from "@/components/about/OurMission";
+import { Timeline } from "@/components/about/Timeline";
+import { TeamSection } from "@/components/about/TeamSection";
+import { OurValues } from "@/components/about/OurValues";
+import { AboutCTA } from "@/components/about/AboutCTA";
 
-const About: React.FC = () => {
+export default function About() {
     return (
-        <div className="container mx-auto p-4">
-            <h1 className="text-3xl font-bold">About Us</h1>
-            <p className="mt-4">
-                We are passionate about bringing the stars closer to you with our
-                top-quality telescopes.
-            </p>
-        </div>
+        <main>
+            <AboutHero />
+            <OurMission />
+            <Timeline />
+            <TeamSection />
+            <OurValues />
+            <AboutCTA />
+        </main>
     );
-};
-
-export default About;
+}

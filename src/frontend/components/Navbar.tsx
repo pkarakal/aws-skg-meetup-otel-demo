@@ -5,9 +5,9 @@ import {
     NavigationMenu,
     NavigationMenuItem,
     NavigationMenuList,
-    NavigationMenuLink, NavigationMenuTrigger, NavigationMenuContent,
+    NavigationMenuLink,
 } from '@/components/ui/navigation-menu';
-import {CartComponent} from "@/components/Cart";
+import {CartDrawer} from "@/components/cart";
 import {ThemeToggle} from "@/components/ThemeToggle";
 
 export const Navbar: React.FC = () => {
@@ -18,14 +18,14 @@ export const Navbar: React.FC = () => {
     ];
 
     return (
-        <NavigationMenu className={"border-b border-gray-200 w-full"}>
+        <NavigationMenu className={"border-b border-border bg-background w-full"}>
             <div className="container mx-auto px-4 flex items-center justify-between h-16">
                 <div className="flex-shrink-0">
                     <Link href="/" passHref>
                         <div className="text-xl font-bold">Telescope Shop</div>
                     </Link>
                 </div>
-                <div className="flex space-x-4">
+                <div className="flex items-center space-x-4">
                     <NavigationMenuList className="flex space-x-4">
                         {navItems.map((item) => (
                             <NavigationMenuItem key={item.name}>
@@ -41,15 +41,10 @@ export const Navbar: React.FC = () => {
                                 </NavigationMenuLink>
                             </NavigationMenuItem>
                         ))}
-                        <NavigationMenuItem>
-                            <NavigationMenuTrigger>Cart</NavigationMenuTrigger>
-                            <NavigationMenuContent>
-                                <CartComponent/>
-                            </NavigationMenuContent>
-                        </NavigationMenuItem>
                     </NavigationMenuList>
+                    <CartDrawer />
+                    <ThemeToggle/>
                 </div>
-            <ThemeToggle/>
             </div>
         </NavigationMenu>
     );
