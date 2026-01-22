@@ -1,13 +1,1 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ .Release.Name }}-cart
-  namespace: {{.Values.namespace }}
-spec:
-  selector:
-    app: {{ .Release.Name }}-cart
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8081
-  type: NodePort
+{{- include "otel-demo.lib.service" (dict "ctx" . "component" "cart") }}

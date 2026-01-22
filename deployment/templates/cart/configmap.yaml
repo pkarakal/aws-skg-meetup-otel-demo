@@ -1,0 +1,28 @@
+{{- $componentValues := .Values.cart }}
+{{- if and $componentValues.enabled $componentValues.config }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "otel-demo.resourceName" (dict "ctx" . "component" "cart") }}-config
+  namespace: {{ include "otel-demo.namespace" . }}
+  labels:
+    {{- include "otel-demo.labels" (dict "ctx" . "component" "cart") | nindent 4 }}
+  {{- with .Values.global.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{ $componentValues.config.fileName | default "config.yaml" }}: |
+    port: "8081"
+    redis:
+      server: {{ include "otel-demo.redis.host" . }}
+      port: {{ include "otel-demo.redis.port" . }}
+      useTLS: false
+      auth:
+        username: {{ .Values.redis.auth.username | default "default" }}
+        password: {{ .Values.redis.auth.password | default "" | quote }}
+    telemetry:
+      enabled: {{ .Values.telemetry.enabled | quote }}
+      collector_url: {{ .Values.telemetry.collector.host | quote }}
+      collector_port: {{ .Values.telemetry.collector.grpcPort | quote }}
+{{- end }}

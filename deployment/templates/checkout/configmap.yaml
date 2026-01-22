@@ -1,0 +1,39 @@
+{{- $componentValues := .Values.checkout }}
+{{- if and $componentValues.enabled $componentValues.config }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "otel-demo.resourceName" (dict "ctx" . "component" "checkout") }}-config
+  namespace: {{ include "otel-demo.namespace" . }}
+  labels:
+    {{- include "otel-demo.labels" (dict "ctx" . "component" "checkout") | nindent 4 }}
+  {{- with .Values.global.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{ $componentValues.config.fileName | default "config.yaml" }}: |
+    port: "8082"
+    catalog:
+      protocol: "http"
+      server: {{ include "otel-demo.fullname" . }}-catalog
+      port: 80
+      path: ""
+      timeout: "3"
+    cart:
+      protocol: "http"
+      server: {{ include "otel-demo.fullname" . }}-cart
+      port: "80"
+      path: "/api/v1"
+      timeout: "3"
+    rabbitmq:
+      host: {{ include "otel-demo.rabbitmq.host" . }}
+      port: {{ include "otel-demo.rabbitmq.port" . }}
+      username: {{ .Values.rabbitmq.auth.username | default "guest" }}
+      password: {{ .Values.rabbitmq.auth.password | default "" | quote }}
+      exchange: inventory_update
+    telemetry:
+      enabled: {{ .Values.telemetry.enabled }}
+      collector_url: {{ .Values.telemetry.collector.host }}
+      collector_port: {{ .Values.telemetry.collector.grpcPort }}
+{{- end }}

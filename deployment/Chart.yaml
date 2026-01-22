@@ -1,9 +1,22 @@
 apiVersion: v2
-name: aws-skg-meetup-demo
-description: A Helm chart for deploying the Opentelemetry Demo Project from the AWS SKG Meetup
+name: otel-demo
+description: A production-ready Helm chart for deploying the OpenTelemetry Demo microservices
 
 type: application
 
-version: 0.1.0
+# Chart version - major bump indicates breaking change from previous structure
+version: 1.0.0
 
+# Application version
 appVersion: "1.0.0"
+
+maintainers:
+  - name: pkarakal
+
+keywords:
+  - opentelemetry
+  - observability
+  - microservices
+  - tracing
+  - metrics
+  - logging
