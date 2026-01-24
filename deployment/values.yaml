@@ -93,6 +93,15 @@ postgresql:
       enabled: true
       size: 10Gi
       storageClass: ebs
+    initdb:
+      scripts:
+        # -- Create Grafana database and user
+        create-grafana-db.sql: |
+          CREATE DATABASE grafana;
+          CREATE USER grafana WITH ENCRYPTED PASSWORD 'grafana_pass';
+          GRANT ALL PRIVILEGES ON DATABASE grafana TO grafana;
+          \c grafana
+          GRANT ALL ON SCHEMA public TO grafana;
 
 # -- Redis subchart configuration (bitnami/redis)
 redis:
@@ -1099,6 +1108,9 @@ grafana:
   # -- Enable Grafana deployment
   enabled: true
 
+  # -- Disable password leak check (demo only - use secrets in production)
+  assertNoLeakedSecrets: false
+
   # -- Admin credentials (demo only - use secrets in production)
   adminUser: admin
   adminPassword: admin
@@ -1172,6 +1184,14 @@ grafana:
   grafana.ini:
     server:
       root_url: "%(protocol)s://%(domain)s/"
+    # -- Use PostgreSQL instead of SQLite for better performance
+    database:
+      type: postgres
+      host: "{{ .Release.Name }}-postgresql:5432"
+      name: grafana
+      user: grafana
+      password: grafana_pass
+      ssl_mode: disable
     auth.anonymous:
       enabled: true
       org_role: Viewer
