@@ -594,12 +594,10 @@ catalog:
   tolerations: []
   affinity: {}
 
-  # -- Spring Boot environment variables
+  # -- Spring Boot environment variables (OTEL endpoint set via extraEnv template below)
   env:
     - name: SPRING_PROFILES_ACTIVE
       value: kubernetes
-    - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://opentelemetry-demo-otelcol:4317"
     - name: OTEL_EXPORTER_OTLP_PROTOCOL
       value: grpc
   extraEnv: []
@@ -757,3 +755,425 @@ frontend:
       CART_SERVICE_ADDR={{ include "otel-demo.fullname" . }}-cart
       CHECKOUT_SERVICE_ADDR={{ include "otel-demo.fullname" . }}-checkout
       OTEL_EXPORTER_OTLP_ENDPOINT=http://{{ include "otel-demo.collector.grpcEndpoint" . }}
+
+# ==============================================================================
+# LGTM Stack Configuration (Grafana Observability)
+# ==============================================================================
+
+# -- Grafana Alloy (OpenTelemetry Collector)
+alloy:
+  # -- Enable Alloy deployment
+  enabled: true
+
+  alloy:
+    # -- Alloy configuration
+    configMap:
+      create: true
+      content: |
+        // OTLP gRPC receiver
+        otelcol.receiver.otlp "default" {
+          grpc {
+            endpoint = "0.0.0.0:4317"
+          }
+          http {
+            endpoint = "0.0.0.0:4318"
+          }
+          output {
+            metrics = [otelcol.processor.batch.default.input]
+            logs    = [otelcol.processor.batch.default.input]
+            traces  = [otelcol.processor.batch.default.input]
+          }
+        }
+
+        // Batch processor for all signals
+        otelcol.processor.batch "default" {
+          output {
+            metrics = [otelcol.exporter.prometheus.mimir.input]
+            logs    = [otelcol.exporter.loki.default.input]
+            traces  = [otelcol.exporter.otlp.tempo.input]
+          }
+        }
+
+        // Export traces to Tempo
+        otelcol.exporter.otlp "tempo" {
+          client {
+            endpoint = "{{ .Release.Name }}-tempo:4317"
+            tls {
+              insecure = true
+            }
+          }
+        }
+
+        // Export logs to Loki
+        otelcol.exporter.loki "default" {
+          forward_to = [loki.write.default.receiver]
+        }
+
+        loki.write "default" {
+          endpoint {
+            url = "http://{{ .Release.Name }}-loki:3100/loki/api/v1/push"
+          }
+        }
+
+        // Export metrics to Mimir
+        otelcol.exporter.prometheus "mimir" {
+          forward_to = [prometheus.remote_write.mimir.receiver]
+        }
+
+        prometheus.remote_write "mimir" {
+          endpoint {
+            url = "http://{{ .Release.Name }}-mimir-nginx/api/v1/push"
+          }
+        }
+
+        // Kubernetes discovery for scraping
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        discovery.kubernetes "nodes" {
+          role = "node"
+        }
+
+        // Scrape Kubernetes pods with prometheus annotations
+        discovery.relabel "pods" {
+          targets = discovery.kubernetes.pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+            regex         = "true"
+            action        = "keep"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+            target_label  = "__metrics_path__"
+            regex         = "(.+)"
+          }
+
+          rule {
+            source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+            target_label  = "__address__"
+            regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+            replacement   = "$1:$2"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+        }
+
+        prometheus.scrape "pods" {
+          targets    = discovery.relabel.pods.output
+          forward_to = [prometheus.remote_write.mimir.receiver]
+        }
+
+  # -- Service configuration for OTLP receivers
+  service:
+    enabled: true
+    type: ClusterIP
+
+  # -- ServiceAccount with RBAC for Kubernetes API access
+  serviceAccount:
+    create: true
+
+  rbac:
+    create: true
+
+# -- Loki (Log aggregation)
+loki:
+  # -- Enable Loki deployment
+  enabled: true
+
+  # -- Deploy as single binary (monolithic mode)
+  deploymentMode: SingleBinary
+
+  loki:
+    # -- Authentication disabled for demo
+    auth_enabled: false
+
+    # -- Common configuration
+    commonConfig:
+      replication_factor: 1
+
+    # -- Schema configuration
+    schemaConfig:
+      configs:
+        - from: "2024-01-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+
+    # -- Storage configuration (filesystem for demo)
+    storage:
+      type: filesystem
+
+    # -- Ingester configuration
+    ingester:
+      chunk_encoding: snappy
+
+    # -- Query scheduler configuration
+    query_scheduler:
+      max_outstanding_requests_per_tenant: 4096
+
+    # -- Query frontend configuration
+    frontend:
+      max_outstanding_per_tenant: 4096
+
+  # -- Single binary configuration
+  singleBinary:
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+
+  # -- Disable distributed components
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  backend:
+    replicas: 0
+
+  # -- Disable monitoring components not needed for demo
+  monitoring:
+    selfMonitoring:
+      enabled: false
+    lokiCanary:
+      enabled: false
+
+  # -- Disable test pod
+  test:
+    enabled: false
+
+  # -- Gateway configuration
+  gateway:
+    enabled: false
+
+# -- Tempo (Distributed tracing)
+tempo:
+  # -- Enable Tempo deployment
+  enabled: true
+
+  # -- Deploy as single binary (monolithic mode)
+  tempo:
+    # -- Receivers configuration
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+
+    # -- Storage configuration (filesystem for demo)
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+        wal:
+          path: /var/tempo/wal
+
+  # -- Persistence configuration
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ebs
+
+  # -- Service configuration
+  service:
+    type: ClusterIP
+
+  # -- Tempo-query (Jaeger UI) disabled for demo
+  tempoQuery:
+    enabled: false
+
+# -- Mimir (Metrics storage) - uses mimir-distributed chart with minimal config
+mimir:
+  # -- Enable Mimir deployment
+  enabled: true
+
+  # -- Global Mimir configuration
+  mimir:
+    # -- Structured config for Mimir
+    structuredConfig:
+      # -- Common configuration
+      common:
+        storage:
+          backend: filesystem
+          filesystem:
+            dir: /data
+
+      # -- Disable multi-tenancy for demo
+      multitenancy_enabled: false
+
+      # -- Ingester configuration
+      ingester:
+        ring:
+          replication_factor: 1
+
+      # -- Store-gateway configuration
+      store_gateway:
+        sharding_ring:
+          replication_factor: 1
+
+      # -- Compactor configuration
+      compactor:
+        sharding_ring:
+          replication_factor: 1
+
+      # -- Limits configuration
+      limits:
+        max_global_series_per_user: 1500000
+        ingestion_rate: 50000
+        ingestion_burst_size: 100000
+
+  # -- Minimal replicas for demo environment
+  ingester:
+    replicas: 1
+    zoneAwareReplication:
+      enabled: false
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+
+  distributor:
+    replicas: 1
+
+  querier:
+    replicas: 1
+
+  query_frontend:
+    replicas: 1
+
+  store_gateway:
+    replicas: 1
+    zoneAwareReplication:
+      enabled: false
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+
+  compactor:
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+
+  # -- Disable components not needed for demo
+  alertmanager:
+    enabled: false
+
+  ruler:
+    enabled: false
+
+  # -- Disable built-in MinIO (using filesystem)
+  minio:
+    enabled: false
+
+  # -- Nginx gateway configuration
+  nginx:
+    enabled: true
+    replicas: 1
+
+  # -- Disable rollout operator
+  rollout_operator:
+    enabled: false
+
+# -- Grafana (Visualization)
+grafana:
+  # -- Enable Grafana deployment
+  enabled: true
+
+  # -- Admin credentials (demo only - use secrets in production)
+  adminUser: admin
+  adminPassword: admin
+
+  # -- Persistence for dashboards
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ebs
+
+  # -- Pre-configured datasources
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        # -- Mimir for metrics
+        - name: Mimir
+          type: prometheus
+          uid: mimir
+          url: http://{{ .Release.Name }}-mimir-nginx/prometheus
+          access: proxy
+          isDefault: true
+          jsonData:
+            httpMethod: POST
+            prometheusType: Mimir
+
+        # -- Tempo for traces
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          url: http://{{ .Release.Name }}-tempo:3200
+          access: proxy
+          jsonData:
+            httpMethod: GET
+            tracesToLogsV2:
+              datasourceUid: loki
+              spanStartTimeShift: "-1h"
+              spanEndTimeShift: "1h"
+              filterByTraceID: true
+              filterBySpanID: false
+            tracesToMetrics:
+              datasourceUid: mimir
+              spanStartTimeShift: "-1h"
+              spanEndTimeShift: "1h"
+            serviceMap:
+              datasourceUid: mimir
+            nodeGraph:
+              enabled: true
+            lokiSearch:
+              datasourceUid: loki
+
+        # -- Loki for logs
+        - name: Loki
+          type: loki
+          uid: loki
+          url: http://{{ .Release.Name }}-loki:3100
+          access: proxy
+          jsonData:
+            derivedFields:
+              - datasourceUid: tempo
+                matcherRegex: "traceID=(\\w+)"
+                name: TraceID
+                url: "$${__value.raw}"
+
+  # -- Service configuration
+  service:
+    type: ClusterIP
+    port: 80
+
+  # -- Grafana configuration
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s/"
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+    feature_toggles:
+      enable: traceToMetrics tempoSearch tempoBackendSearch

@@ -8,5 +8,20 @@ dependencies:
 - name: rabbitmq-cluster-operator
   repository: https://charts.bitnami.com/bitnami
   version: 4.3.24
-digest: sha256:e2e1a22bb7e26ee839289aeb90b86529887ab58e0c40bfd61fece265c4961def
-generated: "2026-01-24T17:44:26.543158641+02:00"
+- name: alloy
+  repository: https://grafana.github.io/helm-charts
+  version: 1.0.3
+- name: loki
+  repository: https://grafana.github.io/helm-charts
+  version: 6.30.1
+- name: tempo
+  repository: https://grafana.github.io/helm-charts
+  version: 1.24.3
+- name: mimir-distributed
+  repository: https://grafana.github.io/helm-charts
+  version: 5.6.0
+- name: grafana
+  repository: https://grafana.github.io/helm-charts
+  version: 8.11.4
+digest: sha256:016f305dcb18b932599b883fac53e83d84d1b9acde7c49d1243a57282a46542f
+generated: "2026-01-24T18:15:02.101293203+02:00"

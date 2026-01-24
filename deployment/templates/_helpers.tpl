@@ -337,21 +337,31 @@ Usage: {{ include "otel-demo.rabbitmq.port" . }}
 
 {{/*
 OpenTelemetry Collector gRPC endpoint.
+When Alloy is enabled, uses the Alloy service. Otherwise falls back to configured collector host.
 Usage: {{ include "otel-demo.collector.grpcEndpoint" . }}
 */}}
 {{- define "otel-demo.collector.grpcEndpoint" -}}
 {{- if .Values.telemetry.enabled }}
-{{- printf "%s.%s.svc.%s:%d" .Values.telemetry.collector.host .Values.global.namespace .Values.global.clusterDomain (.Values.telemetry.collector.grpcPort | int) }}
+{{- if .Values.alloy.enabled }}
+{{- printf "%s-alloy.%s.svc.%s:%d" .Release.Name .Release.Namespace .Values.global.clusterDomain (.Values.telemetry.collector.grpcPort | int) }}
+{{- else }}
+{{- printf "%s.%s.svc.%s:%d" .Values.telemetry.collector.host .Release.Namespace .Values.global.clusterDomain (.Values.telemetry.collector.grpcPort | int) }}
+{{- end }}
 {{- end }}
 {{- end }}
 
 {{/*
 OpenTelemetry Collector HTTP endpoint.
+When Alloy is enabled, uses the Alloy service. Otherwise falls back to configured collector host.
 Usage: {{ include "otel-demo.collector.httpEndpoint" . }}
 */}}
 {{- define "otel-demo.collector.httpEndpoint" -}}
 {{- if .Values.telemetry.enabled }}
-{{- printf "%s.%s.svc.%s:%d" .Values.telemetry.collector.host .Values.global.namespace .Values.global.clusterDomain (.Values.telemetry.collector.httpPort | int) }}
+{{- if .Values.alloy.enabled }}
+{{- printf "%s-alloy.%s.svc.%s:%d" .Release.Name .Release.Namespace .Values.global.clusterDomain (.Values.telemetry.collector.httpPort | int) }}
+{{- else }}
+{{- printf "%s.%s.svc.%s:%d" .Values.telemetry.collector.host .Release.Namespace .Values.global.clusterDomain (.Values.telemetry.collector.httpPort | int) }}
+{{- end }}
 {{- end }}
 {{- end }}
 

@@ -74,8 +74,12 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or $componentValues.extraEnv $componentValues.env }}
+          {{- if or $componentValues.extraEnv $componentValues.env .ctx.Values.telemetry.enabled }}
           env:
+            {{- if .ctx.Values.telemetry.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://{{ include "otel-demo.collector.grpcEndpoint" .ctx }}"
+            {{- end }}
             {{- with $componentValues.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
