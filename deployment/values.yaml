@@ -766,6 +766,81 @@ frontend:
       OTEL_EXPORTER_OTLP_ENDPOINT=http://{{ include "otel-demo.collector.grpcEndpoint" . }}
 
 # ==============================================================================
+# Load Testing Configuration
+# ==============================================================================
+# -- k6 Load Testing Job configuration
+loadTesting:
+  # -- Enable load testing job (disabled by default - run on-demand)
+  enabled: false
+  # -- Component name used in resource naming
+  component: load-testing
+
+  # -- Image configuration
+  image:
+    repository: load-testing
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  # -- Job configuration
+  # Number of retries before marking job as failed
+  backoffLimit: 0
+  # Seconds to keep job after completion (1 hour)
+  ttlSecondsAfterFinished: 3600
+  # Maximum runtime in seconds (30 minutes)
+  activeDeadlineSeconds: 1800
+  # Pod restart policy (Never for jobs)
+  restartPolicy: Never
+
+  # -- Override k6 command (default uses entrypoint from image)
+  command: []
+  # -- k6 arguments (override for different test profiles)
+  args:
+    - "run"
+    - "/scripts/main.ts"
+
+  # -- Additional environment variables
+  # Service URLs (CART/CATALOG/CHECKOUT_SERVICE_URL) are auto-injected by template
+  env: []
+  # Example: Override test duration
+  # - name: K6_DURATION
+  #   value: "5m"
+
+  # -- Resource limits for k6 container
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # -- Pod security context
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 12345
+    runAsGroup: 12345
+    fsGroup: 12345
+    seccompProfile:
+      type: RuntimeDefault
+
+  # -- Container security context
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 12345
+    runAsGroup: 12345
+
+  # -- Annotations for the Job resource
+  annotations: {}
+
+  # -- Pod annotations
+  podAnnotations: {}
+
+# ==============================================================================
 # LGTM Stack Configuration (Grafana Observability)
 # ==============================================================================
 
