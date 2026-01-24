@@ -13,14 +13,14 @@ metadata:
   {{- end }}
 data:
   {{ $componentValues.config.fileName | default "application-kubernetes.properties" }}: |
-    spring.datasource.url=jdbc:postgresql://{{ include "otel-demo.postgresql.host" . }}:{{ include "otel-demo.postgresql.port" . }}/{{ .Values.postgresql.database }}?useUnicode=yes&characterEncoding=UTF-8&serverTimezone=UTC
-    spring.datasource.username={{ .Values.postgresql.auth.username }}
-    spring.datasource.password={{ .Values.postgresql.auth.password }}
+    spring.datasource.url=jdbc:postgresql://{{ include "otel-demo.postgresql.host" . }}:{{ include "otel-demo.postgresql.port" . }}/{{ include "otel-demo.postgresql.database" . }}?useUnicode=yes&characterEncoding=UTF-8&serverTimezone=UTC
+    spring.datasource.username={{ include "otel-demo.postgresql.username" . }}
+    spring.datasource.password={{ include "otel-demo.postgresql.password" . }}
     cloud.aws.region.static={{ .Values.aws.region }}
     cloud.aws.s3.bucket-name={{ .Values.aws.s3.bucketName }}
     minio.enabled=false
     spring.rabbitmq.host={{ include "otel-demo.rabbitmq.host" . }}
     spring.rabbitmq.port={{ include "otel-demo.rabbitmq.port" . }}
-    spring.rabbitmq.username={{ .Values.rabbitmq.auth.username }}
-    spring.rabbitmq.password={{ .Values.rabbitmq.auth.password }}
+    spring.rabbitmq.username=guest
+    spring.rabbitmq.password=guest
 {{- end }}

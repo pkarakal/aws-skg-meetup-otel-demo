@@ -39,3 +39,4 @@ out/
 **/node_modules/
 **/.terraform
 **/__pycache__
+**/charts/

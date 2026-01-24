@@ -288,11 +288,11 @@ startupProbe:
 {{- end }}
 
 {{/*
-Redis host.
+Redis host - subchart creates: {{ .Release.Name }}-redis-master
 Usage: {{ include "otel-demo.redis.host" . }}
 */}}
 {{- define "otel-demo.redis.host" -}}
-{{- printf "%s.%s.svc.%s" .Values.redis.host .Values.global.namespace .Values.global.clusterDomain }}
+{{- printf "%s-redis-master.%s.svc.%s" .Release.Name .Release.Namespace .Values.global.clusterDomain }}
 {{- end }}
 
 {{/*
@@ -304,11 +304,11 @@ Usage: {{ include "otel-demo.redis.port" . }}
 {{- end }}
 
 {{/*
-PostgreSQL host.
+PostgreSQL host - subchart creates: {{ .Release.Name }}-postgresql
 Usage: {{ include "otel-demo.postgresql.host" . }}
 */}}
 {{- define "otel-demo.postgresql.host" -}}
-{{- printf "%s.%s.svc.%s" .Values.postgresql.host .Values.global.namespace .Values.global.clusterDomain }}
+{{- printf "%s-postgresql.%s.svc.%s" .Release.Name .Release.Namespace .Values.global.clusterDomain }}
 {{- end }}
 
 {{/*
@@ -320,11 +320,11 @@ Usage: {{ include "otel-demo.postgresql.port" . }}
 {{- end }}
 
 {{/*
-RabbitMQ host.
+RabbitMQ host - CRD creates service named: rabbitmq
 Usage: {{ include "otel-demo.rabbitmq.host" . }}
 */}}
 {{- define "otel-demo.rabbitmq.host" -}}
-{{- printf "%s.%s.svc.%s" .Values.rabbitmq.host .Values.global.namespace .Values.global.clusterDomain }}
+{{- printf "rabbitmq.%s.svc.%s" .Release.Namespace .Values.global.clusterDomain }}
 {{- end }}
 
 {{/*
@@ -389,4 +389,36 @@ Usage: {{ include "otel-demo.priorityClassName" (dict "ctx" . "component" "cart"
 {{- with $priorityClassName }}
 priorityClassName: {{ . }}
 {{- end }}
+{{- end }}
+
+{{/*
+Redis password from subchart config.
+Usage: {{ include "otel-demo.redis.password" . }}
+*/}}
+{{- define "otel-demo.redis.password" -}}
+{{- .Values.redis.auth.password | default "" }}
+{{- end }}
+
+{{/*
+PostgreSQL username from subchart config.
+Usage: {{ include "otel-demo.postgresql.username" . }}
+*/}}
+{{- define "otel-demo.postgresql.username" -}}
+{{- .Values.postgresql.global.postgresql.auth.username | default "postgres" }}
+{{- end }}
+
+{{/*
+PostgreSQL password from subchart config.
+Usage: {{ include "otel-demo.postgresql.password" . }}
+*/}}
+{{- define "otel-demo.postgresql.password" -}}
+{{- .Values.postgresql.global.postgresql.auth.password | default "" }}
+{{- end }}
+
+{{/*
+PostgreSQL database from subchart config.
+Usage: {{ include "otel-demo.postgresql.database" . }}
+*/}}
+{{- define "otel-demo.postgresql.database" -}}
+{{- .Values.postgresql.global.postgresql.auth.database | default "shop" }}
 {{- end }}

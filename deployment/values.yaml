@@ -77,58 +77,67 @@ telemetry:
     # -- HTTP port for OTLP
     httpPort: 4318
 
-# -- Redis configuration for cart service
-redis:
-  # -- Redis service hostname
-  host: redis-master
-  # -- Redis service port
-  port: 6379
-  # -- Redis authentication configuration
-  auth:
-    # -- Name of existing secret containing Redis password
-    existingSecret: ""
-    # -- Key in the secret containing the password
-    existingSecretKey: "redis-password"
-    # -- Redis username
-    username: "default"
-    # -- Redis password (use existingSecret in production)
-    password: ""
-
-# -- PostgreSQL configuration for catalog service
+# -- PostgreSQL subchart configuration (bitnami/postgresql)
 postgresql:
-  # -- PostgreSQL service hostname
-  host: postgresql
-  # -- PostgreSQL service port
-  port: 5432
-  # -- Database name
-  database: shop
-  # -- PostgreSQL authentication configuration
-  auth:
-    # -- Name of existing secret containing PostgreSQL credentials
-    existingSecret: ""
-    # -- Key in the secret containing the password
-    existingSecretKey: "postgres-password"
-    # -- PostgreSQL username
-    username: "postgres"
-    # -- PostgreSQL password (use existingSecret in production)
-    password: ""
+  # -- Enable PostgreSQL deployment
+  enabled: true
+  global:
+    defaultStorageClass: ebs
+    postgresql:
+      auth:
+        username: backend
+        password: pass
+        database: shop
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
 
-# -- RabbitMQ configuration for checkout/catalog services
-rabbitmq:
-  # -- RabbitMQ service hostname
-  host: rabbitmq
-  # -- RabbitMQ service port
-  port: 5672
-  # -- RabbitMQ authentication configuration
+# -- Redis subchart configuration (bitnami/redis)
+redis:
+  # -- Enable Redis deployment
+  enabled: true
+  global:
+    defaultStorageClass: ebs
+    redis:
+      password: aRUEHUyavd
   auth:
-    # -- Name of existing secret containing RabbitMQ credentials
-    existingSecret: ""
-    # -- Key in the secret containing the password
-    existingSecretKey: "rabbitmq-password"
-    # -- RabbitMQ username
-    username: "guest"
-    # -- RabbitMQ password (use existingSecret in production)
-    password: ""
+    enabled: true
+    password: aRUEHUyavd
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+
+# -- RabbitMQ Cluster Operator subchart configuration (bitnami/rabbitmq-cluster-operator)
+rabbitmq:
+  # -- Enable RabbitMQ deployment
+  enabled: true
+  global:
+    defaultStorageClass: ebs
+  clusterOperator:
+    extraEnvVars: []
+  msgTopologyOperator:
+    extraEnvVars: []
+  extraDeploy:
+    - apiVersion: rabbitmq.com/v1beta1
+      kind: RabbitmqCluster
+      metadata:
+        name: rabbitmq
+      spec:
+        replicas: 1
+        rabbitmq:
+          additionalPlugins:
+            - rabbitmq_stream
+          additionalConfig: |
+            cluster_partition_handling = pause_minority
+            disk_free_limit.relative = 1.0
+            collect_statistics_interval = 10000
+        persistence:
+          storageClassName: ebs
+          storage: 10Gi
 
 # -- AWS configuration
 aws:
@@ -316,8 +325,8 @@ cart:
         port: {{ include "otel-demo.redis.port" . }}
         useTLS: false
         auth:
-          username: {{ .Values.redis.auth.username | default "default" }}
-          password: {{ .Values.redis.auth.password | default "" | quote }}
+          username: default
+          password: {{ include "otel-demo.redis.password" . | quote }}
       telemetry:
         enabled: {{ .Values.telemetry.enabled | quote }}
         collector_url: {{ .Values.telemetry.collector.host | quote }}
@@ -461,8 +470,8 @@ checkout:
         port: {{ include "otel-demo.rabbitmq.port" . }}
         useTLS: false
         auth:
-          username: {{ .Values.rabbitmq.auth.username | default "guest" }}
-          password: {{ .Values.rabbitmq.auth.password | default "" | quote }}
+          username: guest
+          password: ""
         exchange: "orders"
         routingKey: "new_order"
       telemetry:
@@ -606,16 +615,16 @@ catalog:
       - key: application-kubernetes.properties
         path: application-kubernetes.properties
     content: |
-      spring.datasource.url=jdbc:postgresql://{{ include "otel-demo.postgresql.host" . }}:{{ include "otel-demo.postgresql.port" . }}/{{ .Values.postgresql.database }}?useUnicode=yes&characterEncoding=UTF-8&serverTimezone=UTC
-      spring.datasource.username={{ .Values.postgresql.auth.username }}
-      spring.datasource.password={{ .Values.postgresql.auth.password }}
+      spring.datasource.url=jdbc:postgresql://{{ include "otel-demo.postgresql.host" . }}:{{ include "otel-demo.postgresql.port" . }}/{{ include "otel-demo.postgresql.database" . }}?useUnicode=yes&characterEncoding=UTF-8&serverTimezone=UTC
+      spring.datasource.username={{ include "otel-demo.postgresql.username" . }}
+      spring.datasource.password={{ include "otel-demo.postgresql.password" . }}
       cloud.aws.region.static={{ .Values.aws.region }}
       cloud.aws.s3.bucket-name={{ .Values.aws.s3.bucketName }}
       minio.enabled=false
       spring.rabbitmq.host={{ include "otel-demo.rabbitmq.host" . }}
       spring.rabbitmq.port={{ include "otel-demo.rabbitmq.port" . }}
-      spring.rabbitmq.username={{ .Values.rabbitmq.auth.username }}
-      spring.rabbitmq.password={{ .Values.rabbitmq.auth.password }}
+      spring.rabbitmq.username=guest
+      spring.rabbitmq.password=guest
 
 # ==============================================================================
 # Frontend Service Configuration

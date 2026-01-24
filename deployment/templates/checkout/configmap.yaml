@@ -29,8 +29,8 @@ data:
     rabbitmq:
       host: {{ include "otel-demo.rabbitmq.host" . }}
       port: {{ include "otel-demo.rabbitmq.port" . }}
-      username: {{ .Values.rabbitmq.auth.username | default "guest" }}
-      password: {{ .Values.rabbitmq.auth.password | default "" | quote }}
+      username: guest
+      password: ""
       exchange: inventory_update
     telemetry:
       enabled: {{ .Values.telemetry.enabled }}

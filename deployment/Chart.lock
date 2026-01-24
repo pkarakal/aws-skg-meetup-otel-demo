@@ -1,0 +1,12 @@
+dependencies:
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 15.5.32
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 20.1.7
+- name: rabbitmq-cluster-operator
+  repository: https://charts.bitnami.com/bitnami
+  version: 4.3.24
+digest: sha256:e2e1a22bb7e26ee839289aeb90b86529887ab58e0c40bfd61fece265c4961def
+generated: "2026-01-24T17:44:26.543158641+02:00"

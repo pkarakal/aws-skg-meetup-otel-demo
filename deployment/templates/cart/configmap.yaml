@@ -19,8 +19,8 @@ data:
       port: {{ include "otel-demo.redis.port" . }}
       useTLS: false
       auth:
-        username: {{ .Values.redis.auth.username | default "default" }}
-        password: {{ .Values.redis.auth.password | default "" | quote }}
+        username: default
+        password: {{ include "otel-demo.redis.password" . | quote }}
     telemetry:
       enabled: {{ .Values.telemetry.enabled | quote }}
       collector_url: {{ .Values.telemetry.collector.host | quote }}

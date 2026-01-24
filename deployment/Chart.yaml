@@ -20,3 +20,18 @@ keywords:
   - tracing
   - metrics
   - logging
+
+dependencies:
+  - name: postgresql
+    version: "15.5.32"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "20.1.7"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+  - name: rabbitmq-cluster-operator
+    version: "4.3.24"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: rabbitmq.enabled
+    alias: rabbitmq
