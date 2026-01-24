@@ -1,0 +1,1 @@
+{{- include "otel-demo.lib.ingress" (dict "ctx" . "component" "frontend") }}

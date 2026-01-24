@@ -1,0 +1,28 @@
+{{- $componentValues := .Values.frontend }}
+{{- if and $componentValues.enabled $componentValues.config }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "otel-demo.resourceName" (dict "ctx" . "component" "frontend") }}-config
+  namespace: {{ include "otel-demo.namespace" . }}
+  labels:
+    {{- include "otel-demo.labels" (dict "ctx" . "component" "frontend") | nindent 4 }}
+  {{- with .Values.global.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{ $componentValues.config.fileName | default ".env" }}: |
+    CATALOG_SERVICE_ADDR={{ include "otel-demo.fullname" . }}-catalog
+    CART_SERVICE_ADDR={{ include "otel-demo.fullname" . }}-cart
+    CHECKOUT_SERVICE_ADDR={{ include "otel-demo.fullname" . }}-checkout
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://{{ include "otel-demo.collector.grpcEndpoint" . }}
+    OTEL_METRICS_EXPORTER=otlp
+    OTEL_TRACES_EXPORTER=otlp
+    {{- if .Values.aws.s3.bucketName }}
+    IMAGE_SERVER_PROTOCOL=https
+    IMAGE_SERVER_HOST=s3.{{ .Values.aws.region }}.amazonaws.com
+    IMAGE_SERVER_PORT=443
+    IMAGE_SERVER_BUCKET={{ .Values.aws.s3.bucketName }}
+    {{- end }}
+{{- end }}

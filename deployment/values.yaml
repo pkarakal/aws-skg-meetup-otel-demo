@@ -1,89 +1,1199 @@
-# Default values for deployment.
+# Default values for otel-demo Helm chart.
 # This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
 
-replicaCount: 1
+# -- Global configuration shared across all components
+global:
+  # -- Namespace to deploy all resources into
+  namespace: otel-demo
+  # -- Override the chart name
+  nameOverride: ""
+  # -- Override the full resource name
+  fullnameOverride: ""
+  # -- Kubernetes cluster domain for service discovery
+  clusterDomain: cluster.local
 
-namespace: otel-demo
+  # -- Global image configuration
+  image:
+    # -- Container registry to use for all images (e.g., 436025701244.dkr.ecr.eu-west-1.amazonaws.com)
+    registry: ""
+    # -- Image pull policy for all containers
+    pullPolicy: IfNotPresent
+    # -- List of image pull secrets names
+    pullSecrets: []
 
-securityContext:
-  runAsNonRoot: true
-  runAsUser: 1000
+  # -- Labels to add to all resources
+  commonLabels: {}
+  # -- Annotations to add to all resources
+  commonAnnotations: {}
+  # -- Labels to add to all pods
+  podLabels: {}
+  # -- Annotations to add to all pods
+  podAnnotations: {}
+  # -- Priority class name for all pods
+  priorityClassName: ""
 
+# -- RBAC and security configuration
+rbac:
+  # -- Create RBAC resources
+  create: true
+  # -- Default pod security context applied to all pods
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  # -- Default container security context applied to all containers
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    capabilities:
+      drop:
+        - ALL
 
+# -- Global service account configuration
+serviceAccount:
+  # -- Create service accounts
+  create: true
+  # -- Disable auto-mounting service account tokens
+  automount: false
+  # -- Annotations to add to all service accounts (e.g., for IRSA)
+  annotations: {}
+
+# -- OpenTelemetry telemetry configuration
+telemetry:
+  # -- Enable telemetry collection
+  enabled: true
+  # -- OpenTelemetry Collector configuration
+  collector:
+    # -- Collector service hostname
+    host: opentelemetry-demo-otelcol
+    # -- gRPC port for OTLP
+    grpcPort: 4317
+    # -- HTTP port for OTLP
+    httpPort: 4318
+
+# -- PostgreSQL subchart configuration (bitnami/postgresql)
+postgresql:
+  # -- Enable PostgreSQL deployment
+  enabled: true
+  global:
+    defaultStorageClass: ebs
+    postgresql:
+      auth:
+        username: backend
+        password: pass
+        database: shop
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+    initdb:
+      scripts:
+        # -- Create Grafana database and user
+        create-grafana-db.sql: |
+          CREATE DATABASE grafana;
+          CREATE USER grafana WITH ENCRYPTED PASSWORD 'grafana_pass';
+          GRANT ALL PRIVILEGES ON DATABASE grafana TO grafana;
+          \c grafana
+          GRANT ALL ON SCHEMA public TO grafana;
+
+# -- Redis subchart configuration (bitnami/redis)
+redis:
+  # -- Enable Redis deployment
+  enabled: true
+  global:
+    defaultStorageClass: ebs
+    redis:
+      password: aRUEHUyavd
+  auth:
+    enabled: true
+    password: aRUEHUyavd
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+
+# -- RabbitMQ Cluster Operator subchart configuration (bitnami/rabbitmq-cluster-operator)
+rabbitmq:
+  # -- Enable RabbitMQ deployment
+  enabled: true
+  global:
+    defaultStorageClass: ebs
+  clusterOperator:
+    extraEnvVars: []
+  msgTopologyOperator:
+    extraEnvVars: []
+  extraDeploy:
+    - apiVersion: rabbitmq.com/v1beta1
+      kind: RabbitmqCluster
+      metadata:
+        name: rabbitmq
+      spec:
+        replicas: 1
+        rabbitmq:
+          additionalPlugins:
+            - rabbitmq_stream
+          additionalConfig: |
+            cluster_partition_handling = pause_minority
+            disk_free_limit.relative = 1.0
+            collect_statistics_interval = 10000
+        persistence:
+          storageClassName: ebs
+          storage: 10Gi
+
+# -- AWS configuration
+aws:
+  # -- AWS region
+  region: eu-west-1
+  # -- S3 configuration for catalog service
+  s3:
+    # -- S3 bucket name for product images
+    bucketName: ""
+
+# ==============================================================================
+# Cart Service Configuration
+# ==============================================================================
 cart:
-  serviceAccount:
-    create: true
-    automount: true
-    annotations: { }
-    name: "cart-service-sa"
+  # -- Enable cart service deployment
+  enabled: true
+  # -- Component identifier
+  component: cart
+  # -- Number of replicas (ignored if autoscaling is enabled)
+  replicas: 1
 
-  replicaCount: 1
+  # -- Image configuration
   image:
-    repository: 436025701244.dkr.ecr.eu-west-1.amazonaws.com/cart
+    # -- Image repository name
+    repository: cart
+    # -- Image tag
     tag: latest
+    # -- Image pull policy override
+    pullPolicy: ""
+
+  # -- Container port the application listens on
+  containerPort: 8081
+
+  # -- Service configuration
+  service:
+    # -- Enable service creation
+    enabled: true
+    # -- Service type
+    type: ClusterIP
+    # -- Service port
+    port: 80
+    # -- Service annotations
+    annotations: {}
+    # -- Service labels
+    labels: {}
+
+  # -- Ingress configuration
+  ingress:
+    # -- Enable ingress
+    enabled: false
+    # -- Ingress class name
+    className: alb
+    # -- Ingress annotations
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    # -- Ingress hosts configuration
+    hosts: []
+    # -- Ingress TLS configuration
+    tls: []
+    # -- Ingress paths (used when hosts is empty)
+    paths:
+      - path: /api/v1/cart
+        pathType: Prefix
+
+  # -- Resource requests and limits
   resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
     limits:
       cpu: 500m
       memory: 512Mi
-    requests:
-      cpu: 250m
-      memory: 256Mi
 
+  # -- Pod labels
+  podLabels: {}
+  # -- Pod annotations
+  podAnnotations: {}
+
+  # -- Service account configuration
+  serviceAccount:
+    # -- Create a service account
+    create: true
+    # -- Service account name (auto-generated if empty)
+    name: ""
+    # -- Service account annotations (e.g., for IRSA)
+    annotations: {}
+    # -- Auto-mount service account token
+    automount: false
+
+  # -- Pod security context override
+  podSecurityContext: {}
+  # -- Container security context override
+  containerSecurityContext: {}
+
+  # -- Liveness probe configuration
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  # -- Readiness probe configuration
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  # -- Startup probe configuration
+  startupProbe:
+    enabled: false
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    successThreshold: 1
+
+  # -- Pod disruption budget configuration
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+    # maxUnavailable: 1
+
+  # -- Horizontal pod autoscaler configuration
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+    # behavior: {}
+    # metrics: []
+
+  # -- Network policy configuration
+  networkPolicy:
+    enabled: false
+    # ingress: []
+    # egress: []
+
+  # -- Node selector for pod scheduling
+  nodeSelector: {}
+  # -- Tolerations for pod scheduling
+  tolerations: []
+  # -- Affinity rules for pod scheduling
+  affinity: {}
+
+  # -- Additional environment variables
+  extraEnv: []
+  # -- Additional environment variables from secrets/configmaps
+  extraEnvFrom: []
+  # -- Additional volume mounts
+  extraVolumeMounts: []
+  # -- Additional volumes
+  extraVolumes: []
+
+  # -- ConfigMap configuration
+  config:
+    # -- Mount path for the config file
+    mountPath: /etc/cart
+    # -- Config file name
+    fileName: config.yaml
+    # -- Config items mapping
+    items:
+      - key: config.yaml
+        path: config.yaml
+    # -- Config file content (templated)
+    content: |
+      port: "8081"
+      redis:
+        server: {{ include "otel-demo.redis.host" . }}
+        port: {{ include "otel-demo.redis.port" . }}
+        useTLS: false
+        auth:
+          username: default
+          password: {{ include "otel-demo.redis.password" . | quote }}
+      telemetry:
+        enabled: {{ .Values.telemetry.enabled | quote }}
+        collector_url: {{ .Values.telemetry.collector.host | quote }}
+        collector_port: {{ .Values.telemetry.collector.grpcPort | quote }}
+
+# ==============================================================================
+# Checkout Service Configuration
+# ==============================================================================
 checkout:
-  serviceAccount:
-    create: true
-    automount: true
-    annotations: { }
-    name: "checkout-service-sa"
+  # -- Enable checkout service deployment
+  enabled: true
+  # -- Component identifier
+  component: checkout
+  # -- Number of replicas (ignored if autoscaling is enabled)
+  replicas: 1
 
-  replicaCount: 1
+  # -- Image configuration
   image:
-    repository: 436025701244.dkr.ecr.eu-west-1.amazonaws.com/checkout
+    repository: checkout
     tag: latest
+    pullPolicy: ""
+
+  # -- Container port the application listens on
+  containerPort: 8082
+
+  # -- Service configuration
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 80
+    annotations: {}
+    labels: {}
+
+  # -- Ingress configuration
+  ingress:
+    enabled: false
+    className: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    hosts: []
+    tls: []
+    paths:
+      - path: /api/v1/checkout
+        pathType: Prefix
+
+  # -- Resource requests and limits
   resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
     limits:
       cpu: 500m
       memory: 512Mi
-    requests:
-      cpu: 250m
-      memory: 256Mi
 
-catalog:
+  podLabels: {}
+  podAnnotations: {}
+
   serviceAccount:
     create: true
-    automount: true
-    annotations: { }
-    name: "catalog-service-sa"
-    role: arn:aws:iam::436025701244:role/CatalogRole
+    name: ""
+    annotations: {}
+    automount: false
 
-  replicaCount: 1
+  podSecurityContext: {}
+  containerSecurityContext: {}
+
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  startupProbe:
+    enabled: false
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    successThreshold: 1
+
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+  networkPolicy:
+    enabled: false
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  extraEnv:
+    - name: RABBITMQ_PORT
+      value: "5672"
+  extraEnvFrom: []
+  extraVolumeMounts: []
+  extraVolumes: []
+
+  config:
+    mountPath: /etc/checkout
+    fileName: config.yaml
+    items:
+      - key: config.yaml
+        path: config.yaml
+    content: |
+      port: "8082"
+      cartServiceAddress: {{ include "otel-demo.fullname" . }}-cart
+      cartServicePort: "80"
+      catalogServiceAddress: {{ include "otel-demo.fullname" . }}-catalog
+      catalogServicePort: "80"
+      paymentServiceAddress: ""
+      paymentServicePort: ""
+      rabbitmq:
+        server: {{ include "otel-demo.rabbitmq.host" . }}
+        port: {{ include "otel-demo.rabbitmq.port" . }}
+        useTLS: false
+        auth:
+          username: guest
+          password: ""
+        exchange: "orders"
+        routingKey: "new_order"
+      telemetry:
+        enabled: {{ .Values.telemetry.enabled | quote }}
+        collector_url: {{ .Values.telemetry.collector.host | quote }}
+        collector_port: {{ .Values.telemetry.collector.grpcPort | quote }}
+
+# ==============================================================================
+# Catalog Service Configuration
+# ==============================================================================
+catalog:
+  # -- Enable catalog service deployment
+  enabled: true
+  # -- Component identifier
+  component: catalog
+  # -- Number of replicas (ignored if autoscaling is enabled)
+  replicas: 1
+
+  # -- Image configuration
   image:
-    repository: 436025701244.dkr.ecr.eu-west-1.amazonaws.com/catalog
+    repository: catalog
     tag: latest
+    pullPolicy: ""
+
+  # -- Container port the application listens on
+  containerPort: 8080
+
+  # -- Service configuration
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 80
+    annotations: {}
+    labels: {}
+
+  # -- Ingress configuration
+  ingress:
+    enabled: false
+    className: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    hosts: []
+    tls: []
+    paths:
+      - path: /products
+        pathType: Prefix
+
+  # -- Resource requests and limits
   resources:
-    limits:
-      cpu: 2000m
-      memory: 2Gi
     requests:
       cpu: 500m
       memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
 
-frontend:
+  podLabels: {}
+  podAnnotations: {}
+
   serviceAccount:
     create: true
-    automount: true
-    annotations: { }
-    name: "frontend-service-sa"
-  replicaCount: 1
+    name: ""
+    # -- IRSA role annotation for AWS S3 access
+    annotations: {}
+    automount: false
+
+  podSecurityContext: {}
+  # -- Container security context override (catalog needs writable tmp for Spring Boot)
+  containerSecurityContext:
+    readOnlyRootFilesystem: false
+
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /actuator/health/liveness
+      port: http
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /actuator/health/readiness
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  startupProbe:
+    enabled: true
+    httpGet:
+      path: /actuator/health/liveness
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    successThreshold: 1
+
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+  networkPolicy:
+    enabled: false
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  # -- Spring Boot environment variables (OTEL endpoint set via extraEnv template below)
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: kubernetes
+    - name: OTEL_EXPORTER_OTLP_PROTOCOL
+      value: grpc
+  extraEnv: []
+  extraEnvFrom: []
+  extraVolumeMounts: []
+  extraVolumes: []
+
+  config:
+    mountPath: /usr/src/app
+    fileName: application-kubernetes.properties
+    subPath: application-kubernetes.properties
+    items:
+      - key: application-kubernetes.properties
+        path: application-kubernetes.properties
+    content: |
+      spring.datasource.url=jdbc:postgresql://{{ include "otel-demo.postgresql.host" . }}:{{ include "otel-demo.postgresql.port" . }}/{{ include "otel-demo.postgresql.database" . }}?useUnicode=yes&characterEncoding=UTF-8&serverTimezone=UTC
+      spring.datasource.username={{ include "otel-demo.postgresql.username" . }}
+      spring.datasource.password={{ include "otel-demo.postgresql.password" . }}
+      cloud.aws.region.static={{ .Values.aws.region }}
+      cloud.aws.s3.bucket-name={{ .Values.aws.s3.bucketName }}
+      minio.enabled=false
+      spring.rabbitmq.host={{ include "otel-demo.rabbitmq.host" . }}
+      spring.rabbitmq.port={{ include "otel-demo.rabbitmq.port" . }}
+      spring.rabbitmq.username=guest
+      spring.rabbitmq.password=guest
+
+# ==============================================================================
+# Frontend Service Configuration
+# ==============================================================================
+frontend:
+  # -- Enable frontend service deployment
+  enabled: true
+  # -- Component identifier
+  component: frontend
+  # -- Number of replicas (ignored if autoscaling is enabled)
+  replicas: 1
+
+  # -- Image configuration
   image:
-    repository: 436025701244.dkr.ecr.eu-west-1.amazonaws.com/frontend
+    repository: frontend
     tag: latest
+    pullPolicy: ""
+
+  # -- Container port the application listens on
+  containerPort: 3000
+
+  # -- Service configuration
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 80
+    annotations: {}
+    labels: {}
+
+  # -- Ingress configuration
+  ingress:
+    enabled: false
+    className: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    hosts: []
+    tls: []
+    paths:
+      - path: /
+        pathType: Prefix
+
+  # -- Resource requests and limits
   resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
     limits:
       cpu: 500m
       memory: 512Mi
-    requests:
-      cpu: 500m
-      memory: 512Mi
 
+  podLabels: {}
+  podAnnotations: {}
+
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+    automount: false
+
+  podSecurityContext: {}
+  # -- Container security context override (Next.js needs writable filesystem)
+  containerSecurityContext:
+    readOnlyRootFilesystem: false
+
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  startupProbe:
+    enabled: false
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    successThreshold: 1
+
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+  networkPolicy:
+    enabled: false
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  extraEnv: []
+  extraEnvFrom: []
+  extraVolumeMounts: []
+  extraVolumes: []
+
+  config:
+    mountPath: /app
+    fileName: .env
+    subPath: .env
+    items:
+      - key: .env
+        path: .env
+    content: |
+      CATALOG_SERVICE_ADDR={{ include "otel-demo.fullname" . }}-catalog
+      CART_SERVICE_ADDR={{ include "otel-demo.fullname" . }}-cart
+      CHECKOUT_SERVICE_ADDR={{ include "otel-demo.fullname" . }}-checkout
+      OTEL_EXPORTER_OTLP_ENDPOINT=http://{{ include "otel-demo.collector.grpcEndpoint" . }}
+
+# ==============================================================================
+# LGTM Stack Configuration (Grafana Observability)
+# ==============================================================================
+
+# -- Grafana Alloy (OpenTelemetry Collector)
+alloy:
+  # -- Enable Alloy deployment
+  enabled: true
+
+  alloy:
+    # -- Alloy configuration
+    configMap:
+      create: true
+      content: |
+        // OTLP gRPC receiver
+        otelcol.receiver.otlp "default" {
+          grpc {
+            endpoint = "0.0.0.0:4317"
+          }
+          http {
+            endpoint = "0.0.0.0:4318"
+          }
+          output {
+            metrics = [otelcol.processor.batch.default.input]
+            logs    = [otelcol.processor.batch.default.input]
+            traces  = [otelcol.processor.batch.default.input]
+          }
+        }
+
+        // Batch processor for all signals
+        otelcol.processor.batch "default" {
+          output {
+            metrics = [otelcol.exporter.prometheus.mimir.input]
+            logs    = [otelcol.exporter.loki.default.input]
+            traces  = [otelcol.exporter.otlp.tempo.input]
+          }
+        }
+
+        // Export traces to Tempo
+        otelcol.exporter.otlp "tempo" {
+          client {
+            endpoint = "{{ .Release.Name }}-tempo:4317"
+            tls {
+              insecure = true
+            }
+          }
+        }
+
+        // Export logs to Loki
+        otelcol.exporter.loki "default" {
+          forward_to = [loki.write.default.receiver]
+        }
+
+        loki.write "default" {
+          endpoint {
+            url = "http://{{ .Release.Name }}-loki:3100/loki/api/v1/push"
+          }
+        }
+
+        // Export metrics to Mimir
+        otelcol.exporter.prometheus "mimir" {
+          forward_to = [prometheus.remote_write.mimir.receiver]
+        }
+
+        prometheus.remote_write "mimir" {
+          endpoint {
+            url = "http://{{ .Release.Name }}-mimir-nginx/api/v1/push"
+          }
+        }
+
+        // Kubernetes discovery for scraping
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        discovery.kubernetes "nodes" {
+          role = "node"
+        }
+
+        // Scrape Kubernetes pods with prometheus annotations
+        discovery.relabel "pods" {
+          targets = discovery.kubernetes.pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+            regex         = "true"
+            action        = "keep"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+            target_label  = "__metrics_path__"
+            regex         = "(.+)"
+          }
+
+          rule {
+            source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+            target_label  = "__address__"
+            regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+            replacement   = "$1:$2"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+        }
+
+        prometheus.scrape "pods" {
+          targets    = discovery.relabel.pods.output
+          forward_to = [prometheus.remote_write.mimir.receiver]
+        }
+
+  # -- Service configuration for OTLP receivers
+  service:
+    enabled: true
+    type: ClusterIP
+
+  # -- ServiceAccount with RBAC for Kubernetes API access
+  serviceAccount:
+    create: true
+
+  rbac:
+    create: true
+
+# -- Loki (Log aggregation)
+loki:
+  # -- Enable Loki deployment
+  enabled: true
+
+  # -- Deploy as single binary (monolithic mode)
+  deploymentMode: SingleBinary
+
+  loki:
+    # -- Authentication disabled for demo
+    auth_enabled: false
+
+    # -- Common configuration
+    commonConfig:
+      replication_factor: 1
+
+    # -- Schema configuration
+    schemaConfig:
+      configs:
+        - from: "2024-01-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+
+    # -- Storage configuration (filesystem for demo)
+    storage:
+      type: filesystem
+
+    # -- Ingester configuration
+    ingester:
+      chunk_encoding: snappy
+
+    # -- Query scheduler configuration
+    query_scheduler:
+      max_outstanding_requests_per_tenant: 4096
+
+    # -- Query frontend configuration
+    frontend:
+      max_outstanding_per_tenant: 4096
+
+  # -- Single binary configuration
+  singleBinary:
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+
+  # -- Disable distributed components
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  backend:
+    replicas: 0
+
+  # -- Disable monitoring components not needed for demo
+  monitoring:
+    selfMonitoring:
+      enabled: false
+    lokiCanary:
+      enabled: false
+
+  # -- Disable test pod
+  test:
+    enabled: false
+
+  # -- Gateway configuration
+  gateway:
+    enabled: false
+
+# -- Tempo (Distributed tracing)
+tempo:
+  # -- Enable Tempo deployment
+  enabled: true
+
+  # -- Deploy as single binary (monolithic mode)
+  tempo:
+    # -- Receivers configuration
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+
+    # -- Storage configuration (filesystem for demo)
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+        wal:
+          path: /var/tempo/wal
+
+  # -- Persistence configuration
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ebs
+
+  # -- Service configuration
+  service:
+    type: ClusterIP
+
+  # -- Tempo-query (Jaeger UI) disabled for demo
+  tempoQuery:
+    enabled: false
+
+# -- Mimir (Metrics storage) - uses mimir-distributed chart with minimal config
+mimir:
+  # -- Enable Mimir deployment
+  enabled: true
+
+  # -- Global Mimir configuration
+  mimir:
+    # -- Structured config for Mimir
+    structuredConfig:
+      # -- Common configuration
+      common:
+        storage:
+          backend: filesystem
+          filesystem:
+            dir: /data
+
+      # -- Disable multi-tenancy for demo
+      multitenancy_enabled: false
+
+      # -- Ingester configuration
+      ingester:
+        ring:
+          replication_factor: 1
+
+      # -- Store-gateway configuration
+      store_gateway:
+        sharding_ring:
+          replication_factor: 1
+
+      # -- Compactor configuration
+      compactor:
+        sharding_ring:
+          replication_factor: 1
+
+      # -- Limits configuration
+      limits:
+        max_global_series_per_user: 1500000
+        ingestion_rate: 50000
+        ingestion_burst_size: 100000
+
+  # -- Minimal replicas for demo environment
+  ingester:
+    replicas: 1
+    zoneAwareReplication:
+      enabled: false
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+
+  distributor:
+    replicas: 1
+
+  querier:
+    replicas: 1
+
+  query_frontend:
+    replicas: 1
+
+  store_gateway:
+    replicas: 1
+    zoneAwareReplication:
+      enabled: false
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+
+  compactor:
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ebs
+
+  # -- Disable components not needed for demo
+  alertmanager:
+    enabled: false
+
+  ruler:
+    enabled: false
+
+  # -- Disable built-in MinIO (using filesystem)
+  minio:
+    enabled: false
+
+  # -- Nginx gateway configuration
+  nginx:
+    enabled: true
+    replicas: 1
+
+  # -- Disable rollout operator
+  rollout_operator:
+    enabled: false
+
+# -- Grafana (Visualization)
+grafana:
+  # -- Enable Grafana deployment
+  enabled: true
+
+  # -- Disable password leak check (demo only - use secrets in production)
+  assertNoLeakedSecrets: false
+
+  # -- Admin credentials (demo only - use secrets in production)
+  adminUser: admin
+  adminPassword: admin
+
+  # -- Persistence for dashboards
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ebs
+
+  # -- Pre-configured datasources
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        # -- Mimir for metrics
+        - name: Mimir
+          type: prometheus
+          uid: mimir
+          url: http://{{ .Release.Name }}-mimir-nginx/prometheus
+          access: proxy
+          isDefault: true
+          jsonData:
+            httpMethod: POST
+            prometheusType: Mimir
+
+        # -- Tempo for traces
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          url: http://{{ .Release.Name }}-tempo:3200
+          access: proxy
+          jsonData:
+            httpMethod: GET
+            tracesToLogsV2:
+              datasourceUid: loki
+              spanStartTimeShift: "-1h"
+              spanEndTimeShift: "1h"
+              filterByTraceID: true
+              filterBySpanID: false
+            tracesToMetrics:
+              datasourceUid: mimir
+              spanStartTimeShift: "-1h"
+              spanEndTimeShift: "1h"
+            serviceMap:
+              datasourceUid: mimir
+            nodeGraph:
+              enabled: true
+            lokiSearch:
+              datasourceUid: loki
+
+        # -- Loki for logs
+        - name: Loki
+          type: loki
+          uid: loki
+          url: http://{{ .Release.Name }}-loki:3100
+          access: proxy
+          jsonData:
+            derivedFields:
+              - datasourceUid: tempo
+                matcherRegex: "traceID=(\\w+)"
+                name: TraceID
+                url: "$${__value.raw}"
+
+  # -- Service configuration
+  service:
+    type: ClusterIP
+    port: 80
+
+  # -- Grafana configuration
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s/"
+    # -- Use PostgreSQL instead of SQLite for better performance
+    database:
+      type: postgres
+      host: "{{ .Release.Name }}-postgresql:5432"
+      name: grafana
+      user: grafana
+      password: grafana_pass
+      ssl_mode: disable
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+    feature_toggles:
+      enable: traceToMetrics tempoSearch tempoBackendSearch

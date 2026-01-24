@@ -1,0 +1,1 @@
+{{- include "otel-demo.lib.pdb" (dict "ctx" . "component" "catalog") }}
