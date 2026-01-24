@@ -27,6 +27,9 @@ variable "service_repositories" {
     },
     {
       name = "frontend"
+    },
+    {
+      name = "load-testing"
     }
   ]
 }

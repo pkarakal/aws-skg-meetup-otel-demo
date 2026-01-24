@@ -1,0 +1,9 @@
+# Ignore documentation and non-essential files
+README.md
+*.md
+.git
+.gitignore
+
+# Ignore Docker files (not needed in image)
+Dockerfile
+.dockerignore
