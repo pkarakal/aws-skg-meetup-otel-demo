@@ -18,8 +18,8 @@ Resources:
       CodeUri: .
       Description: Payment processing Lambda function
       Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:184161586896:layer:opentelemetry-python-0_13_0:1
-        - !Sub arn:aws:lambda:${AWS::Region}:184161586896:layer:opentelemetry-collector-amd64-0_13_0:1
+        - !Sub arn:aws:lambda:${AWS::Region}:184161586896:layer:opentelemetry-python-0_17_0:1
+        - !Sub arn:aws:lambda:${AWS::Region}:184161586896:layer:opentelemetry-collector-amd64-0_19_0:1
       Events:
         PaymentApi:
           Type: Api
@@ -38,13 +38,14 @@ Resources:
           OTEL_SERVICE_NAME: payment-service
           OTEL_PROPAGATORS: tracecontext,baggage
           OTEL_PYTHON_DISABLED_INSTRUMENTATIONS: urllib3
+          OPENTELEMETRY_COLLECTOR_CONFIG_URI: !Sub s3://aws-skg-otel-demo-config-bucket-pkarakal.s3.${AWS::Region}.amazonaws.com/otel-collector-config.yml
     Metadata:
       BuildMethod: python3.14
 
 Outputs:
   PaymentApi:
     Description: API Gateway endpoint URL for the Payment function
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
   PaymentFunction:
     Description: Payment Lambda Function ARN
     Value: !GetAtt PaymentFunction.Arn
