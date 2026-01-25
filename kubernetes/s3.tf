@@ -28,6 +28,15 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "mimir_bucket_encr
   }
 }
 
+resource "aws_s3_bucket_public_access_block" "mimir_bucket_public_access_block" {
+  bucket = aws_s3_bucket.mimir.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 
 
 resource "aws_s3_bucket" "loki" {
@@ -57,6 +66,15 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "loki_bucket_encry
     }
     bucket_key_enabled = true
   }
+}
+
+resource "aws_s3_bucket_public_access_block" "loki_bucket_public_access_block" {
+  bucket = aws_s3_bucket.loki.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 
@@ -90,6 +108,15 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "tempo_bucket_encr
   }
 }
 
+resource "aws_s3_bucket_public_access_block" "tempo_bucket_public_access_block" {
+  bucket = aws_s3_bucket.tempo.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 
 
 resource "aws_s3_bucket" "catalog" {
@@ -119,4 +146,13 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "catalog_bucket_en
     }
     bucket_key_enabled = true
   }
+}
+
+resource "aws_s3_bucket_public_access_block" "catalog_bucket_public_access_block" {
+  bucket = aws_s3_bucket.catalog.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
