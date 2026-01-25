@@ -156,3 +156,79 @@ resource "aws_s3_bucket_public_access_block" "catalog_bucket_public_access_block
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
+
+resource "aws_s3_bucket" "otel_config" {
+  bucket = "aws-skg-otel-demo-config-bucket-pkarakal"
+}
+
+resource "aws_s3_bucket_ownership_controls" "otel_config_bucket_ownership_controls" {
+  bucket = aws_s3_bucket.otel_config.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+resource "aws_s3_bucket_acl" "otel_config_bucket_acl" {
+  depends_on = [aws_s3_bucket_ownership_controls.otel_config_bucket_ownership_controls]
+  bucket     = aws_s3_bucket.otel_config.id
+  acl        = "private"
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "otel_config_bucket_encryption" {
+  bucket = aws_s3_bucket.otel_config.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "aws:kms"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "otel_config_bucket_public_access_block" {
+  bucket = aws_s3_bucket.otel_config.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_object" "otel_config" {
+  bucket = aws_s3_bucket.otel_config.id
+  key    = "otel-collector-config.yml"
+
+  content = <<EOT
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+processors:
+  batch:
+  decouple:
+  coldstart:
+
+exporters:
+  otlp:
+    endpoint: https://alloy.pkarakal.com
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [ batch, decouple, coldstart ]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp]
+      processors: [ batch, decouple ]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp]
+      exporters: [otlp]
+EOT
+}
