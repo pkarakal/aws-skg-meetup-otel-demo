@@ -5,9 +5,9 @@ variable "region" {
 }
 
 variable "name" {
-  type = string
+  type        = string
   description = "The VPC name"
-  default = "VPC"
+  default     = "VPC"
 }
 
 variable "service_repositories" {
@@ -23,7 +23,7 @@ variable "service_repositories" {
       name = "catalog"
     },
     {
-      name="checkout"
+      name = "checkout"
     },
     {
       name = "frontend"
@@ -49,5 +49,22 @@ variable "public_subnets_cidr_blocks" {
 variable "private_subnets_cidr_blocks" {
   description = "List of VPC private subnets CIDR blocks"
   type        = list(string)
-  default     = ["10.10.4.0/24", "10.10.5.0/24", "10.10.6.0/24"]
+  default     = ["10.10.64.0/18", "10.10.128.0/18", "10.10.192.0/18"]
+}
+
+variable "cloudflare_zone_id" {
+  type        = string
+  description = "Cloudflare Zone ID for external-dns zone filtering"
+}
+
+variable "cloudflare_api_token" {
+  type        = string
+  description = "Cloudflare API token for external-dns (Zone Read, DNS Edit permissions)"
+  sensitive   = true
+}
+
+variable "cloudflare_api_email" {
+  type        = string
+  description = "Cloudflare API email for external-dns (Zone Read, DNS Edit permissions)"
+  sensitive   = true
 }

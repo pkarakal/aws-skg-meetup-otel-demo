@@ -3,13 +3,13 @@ module "eks" {
   version = "~> 20.24.2"
 
   cluster_name    = "aws-skg-user-group-otel-demo"
-  cluster_version = "1.30"
+  cluster_version = "1.33"
 
   cluster_endpoint_public_access = true
 
   create_kms_key = true
 
-  cloudwatch_log_group_retention_in_days = 7
+  cloudwatch_log_group_retention_in_days = 1
 
   cluster_addons = {
     kube-proxy = {
@@ -17,6 +17,10 @@ module "eks" {
     }
 
     vpc-cni = {
+      most_recent = true
+    }
+
+    metrics-server = {
       most_recent = true
     }
 

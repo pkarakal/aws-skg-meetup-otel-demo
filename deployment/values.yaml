@@ -15,7 +15,7 @@ global:
   # -- Global image configuration
   image:
     # -- Container registry to use for all images (e.g., 436025701244.dkr.ecr.eu-west-1.amazonaws.com)
-    registry: ""
+    registry: "436025701244.dkr.ecr.eu-west-1.amazonaws.com"
     # -- Image pull policy for all containers
     pullPolicy: IfNotPresent
     # -- List of image pull secrets names
@@ -202,15 +202,21 @@ cart:
     # -- Ingress annotations
     annotations:
       alb.ingress.kubernetes.io/scheme: internet-facing
-      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+      alb.ingress.kubernetes.io/group.name: otel-demo
+      kubernetes.io/ingress.class: "alb"
+      alb.ingress.kubernetes.io/group.order: "2"
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-1:436025701244:certificate/3da890b1-f5cd-451a-ae13-66e478deda96"
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      external-dns.alpha.kubernetes.io/hostname: cart.pkarakal.com
     # -- Ingress hosts configuration
-    hosts: []
+    hosts:
+      - host: cart.pkarakal.com
+        paths:
+          - path: /api/v1/cart
+            pathType: Prefix
     # -- Ingress TLS configuration
     tls: []
-    # -- Ingress paths (used when hosts is empty)
-    paths:
-      - path: /api/v1/cart
-        pathType: Prefix
 
   # -- Resource requests and limits
   resources:
@@ -375,12 +381,19 @@ checkout:
     className: alb
     annotations:
       alb.ingress.kubernetes.io/scheme: internet-facing
-      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
-    hosts: []
+      alb.ingress.kubernetes.io/group.name: otel-demo
+      kubernetes.io/ingress.class: "alb"
+      alb.ingress.kubernetes.io/group.order: "4"
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-1:436025701244:certificate/3da890b1-f5cd-451a-ae13-66e478deda96"
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      external-dns.alpha.kubernetes.io/hostname: checkout.pkarakal.com
+    hosts:
+      - host: checkout.pkarakal.com
+        paths:
+          - path: /api/v1/checkout
+            pathType: Prefix
     tls: []
-    paths:
-      - path: /api/v1/checkout
-        pathType: Prefix
 
   # -- Resource requests and limits
   resources:
@@ -522,12 +535,19 @@ catalog:
     className: alb
     annotations:
       alb.ingress.kubernetes.io/scheme: internet-facing
-      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
-    hosts: []
+      alb.ingress.kubernetes.io/group.name: otel-demo
+      kubernetes.io/ingress.class: "alb"
+      alb.ingress.kubernetes.io/group.order: "3"
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-1:436025701244:certificate/3da890b1-f5cd-451a-ae13-66e478deda96"
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      external-dns.alpha.kubernetes.io/hostname: catalog.pkarakal.com
+    hosts:
+      - host: catalog.pkarakal.com
+        paths:
+          - path: /products
+            pathType: Prefix
     tls: []
-    paths:
-      - path: /products
-        pathType: Prefix
 
   # -- Resource requests and limits
   resources:
@@ -545,7 +565,8 @@ catalog:
     create: true
     name: ""
     # -- IRSA role annotation for AWS S3 access
-    annotations: {}
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::436025701244:role/CatalogRole
     automount: false
 
   podSecurityContext: {}
@@ -667,12 +688,19 @@ frontend:
     className: alb
     annotations:
       alb.ingress.kubernetes.io/scheme: internet-facing
-      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
-    hosts: []
+      alb.ingress.kubernetes.io/group.name: otel-demo
+      kubernetes.io/ingress.class: "alb"
+      alb.ingress.kubernetes.io/group.order: "1"
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-1:436025701244:certificate/3da890b1-f5cd-451a-ae13-66e478deda96"
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      external-dns.alpha.kubernetes.io/hostname: frontend.pkarakal.com
+    hosts:
+      - host: frontend.pkarakal.com
+        paths:
+          - path: /
+            pathType: Prefix
     tls: []
-    paths:
-      - path: /
-        pathType: Prefix
 
   # -- Resource requests and limits
   resources:
@@ -991,15 +1019,21 @@ loki:
       configs:
         - from: "2024-01-01"
           store: tsdb
-          object_store: filesystem
+          object_store: s3
           schema: v13
           index:
             prefix: loki_index_
             period: 24h
 
-    # -- Storage configuration (filesystem for demo)
+    # -- Storage configuration (S3 for production)
     storage:
-      type: filesystem
+      type: s3
+      bucketNames:
+        chunks: aws-skg-otel-demo-loki-pkarakal
+        ruler: aws-skg-otel-demo-loki-pkarakal
+        admin: aws-skg-otel-demo-loki-pkarakal
+      s3:
+        region: eu-west-1
 
     # -- Ingester configuration
     ingester:
@@ -1012,6 +1046,12 @@ loki:
     # -- Query frontend configuration
     frontend:
       max_outstanding_per_tenant: 4096
+
+  # -- Service account with IRSA for S3 access
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::436025701244:role/LokiS3Role
 
   # -- Single binary configuration
   singleBinary:
@@ -1060,14 +1100,21 @@ tempo:
           http:
             endpoint: "0.0.0.0:4318"
 
-    # -- Storage configuration (filesystem for demo)
+    # -- Storage configuration (S3 for production)
     storage:
       trace:
-        backend: local
-        local:
-          path: /var/tempo/traces
+        backend: s3
+        s3:
+          bucket: aws-skg-otel-demo-tempo-pkarakal
+          region: eu-west-1
         wal:
           path: /var/tempo/wal
+
+  # -- Service account with IRSA for S3 access
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::436025701244:role/TempoS3Role
 
   # -- Persistence configuration
   persistence:
@@ -1095,9 +1142,10 @@ mimir:
       # -- Common configuration
       common:
         storage:
-          backend: filesystem
-          filesystem:
-            dir: /data
+          backend: s3
+          s3:
+            region: eu-west-1
+            bucket_name: aws-skg-otel-demo-mimir-pkarakal
 
       # -- Disable multi-tenancy for demo
       multitenancy_enabled: false
@@ -1122,6 +1170,12 @@ mimir:
         max_global_series_per_user: 1500000
         ingestion_rate: 50000
         ingestion_burst_size: 100000
+
+  # -- Service account with IRSA for S3 access
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::436025701244:role/MimirS3Role
 
   # -- Minimal replicas for demo environment
   ingester:
@@ -1165,7 +1219,7 @@ mimir:
   ruler:
     enabled: false
 
-  # -- Disable built-in MinIO (using filesystem)
+  # -- Disable built-in MinIO (using S3)
   minio:
     enabled: false
 
@@ -1254,6 +1308,24 @@ grafana:
   service:
     type: ClusterIP
     port: 80
+
+  # -- Ingress configuration
+  ingress:
+    enabled: false
+    ingressClassName: alb
+    annotations:
+      kubernetes.io/ingress.class: "alb"
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/group.name: otel-demo
+      alb.ingress.kubernetes.io/group.order: "5"
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-1:436025701244:certificate/3da890b1-f5cd-451a-ae13-66e478deda96"
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      external-dns.alpha.kubernetes.io/hostname: grafana.pkarakal.com
+    hosts:
+      - grafana.pkarakal.com
+    path: /
+    pathType: Prefix
 
   # -- Grafana configuration
   grafana.ini:

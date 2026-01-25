@@ -55,3 +55,59 @@ resource "aws_iam_role" "ebs_csi_role" {
     "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   ]
 }
+
+resource "aws_iam_policy" "loki_s3_role_policy" {
+  name = "LokiS3IAMPolicy"
+  policy = data.aws_iam_policy_document.loki_s3_role_policy.json
+}
+
+resource "aws_iam_role" "loki_s3_role" {
+  name               = "LokiS3Role"
+  assume_role_policy = data.aws_iam_policy_document.loki_s3_role_assume_policy.json
+
+  managed_policy_arns = [
+    aws_iam_policy.loki_s3_role_policy.arn
+  ]
+}
+
+resource "aws_iam_policy" "mimir_s3_role_policy" {
+  name = "MimirS3IAMPolicy"
+  policy = data.aws_iam_policy_document.mimir_s3_role_policy.json
+}
+
+resource "aws_iam_role" "mimir_s3_role" {
+  name               = "MimirS3Role"
+  assume_role_policy = data.aws_iam_policy_document.mimir_s3_role_assume_policy.json
+
+  managed_policy_arns = [
+    aws_iam_policy.mimir_s3_role_policy.arn
+  ]
+}
+
+resource "aws_iam_policy" "tempo_s3_role_policy" {
+  name = "TempoS3IAMPolicy"
+  policy = data.aws_iam_policy_document.tempo_s3_role_policy.json
+}
+
+resource "aws_iam_role" "tempo_s3_role" {
+  name               = "TempoS3Role"
+  assume_role_policy = data.aws_iam_policy_document.tempo_s3_role_assume_policy.json
+
+  managed_policy_arns = [
+    aws_iam_policy.tempo_s3_role_policy.arn
+  ]
+}
+
+resource "aws_iam_policy" "external_dns_role_policy" {
+  name   = "ExternalDNSIAMPolicy"
+  policy = data.aws_iam_policy_document.external_dns_role_policy.json
+}
+
+resource "aws_iam_role" "external_dns_role" {
+  name               = "ExternalDNSRole"
+  assume_role_policy = data.aws_iam_policy_document.external_dns_role_assume_policy.json
+
+  managed_policy_arns = [
+    aws_iam_policy.external_dns_role_policy.arn
+  ]
+}

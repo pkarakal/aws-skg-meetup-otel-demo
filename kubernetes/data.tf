@@ -6,6 +6,14 @@ data "aws_availability_zones" "available_azs" {
 # Get current region
 data "aws_region" "current" {}
 
+# Get certificate from ACM
+data "aws_acm_certificate" "domain_certificate" {
+  domain      = "*.pkarakal.com"
+  types       = ["AMAZON_ISSUED"]
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
 # VPCe policies
 data "aws_iam_policy_document" "generic_endpoint_policy" {
   statement {
@@ -64,7 +72,7 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
     ]
     resources = ["*"]
     condition {
-      test     = "StringEquals"
+      test = "StringEquals"
       values = [
         "elasticloadbalancing.amazonaws.com"
       ]
@@ -154,7 +162,7 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
       "arn:aws:ec2:*:*:security-group/*"
     ]
     condition {
-      test     = "StringEquals"
+      test = "StringEquals"
       values = [
         "CreateSecurityGroup"
       ]
@@ -162,7 +170,7 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
     }
     condition {
       test     = "Null"
-      values = ["false"]
+      values   = ["false"]
       variable = "aws:RequestTag/elbv2.k8s.aws/cluster"
     }
   }
@@ -176,13 +184,13 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
     resources = ["arn:aws:ec2:*:*:security-group/*"]
     condition {
       test     = "Null"
-      values = ["true"]
+      values   = ["true"]
       variable = "aws:RequestTag/elbv2.k8s.aws/cluster"
     }
 
     condition {
       test     = "Null"
-      values = ["false"]
+      values   = ["false"]
       variable = "aws:ResourceTag/elbv2.k8s.aws/cluster"
     }
   }
@@ -198,7 +206,7 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
 
     condition {
       test     = "Null"
-      values = ["false"]
+      values   = ["false"]
       variable = "aws:ResourceTag/elbv2.k8s.aws/cluster"
     }
   }
@@ -213,7 +221,7 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
 
     condition {
       test     = "Null"
-      values = ["false"]
+      values   = ["false"]
       variable = "aws:RequestTag/elbv2.k8s.aws/cluster"
     }
   }
@@ -242,12 +250,12 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
     ]
     condition {
       test     = "Null"
-      values = ["true"]
+      values   = ["true"]
       variable = "aws:RequestTag/elbv2.k8s.aws/cluster"
     }
     condition {
       test     = "Null"
-      values = ["false"]
+      values   = ["false"]
       variable = "aws:ResourceTag/elbv2.k8s.aws/cluster"
     }
   }
@@ -283,13 +291,13 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
 
     condition {
       test     = "Null"
-      values = ["false"]
+      values   = ["false"]
       variable = "aws:ResourceTag/elbv2.k8s.aws/cluster"
     }
   }
 
   statement {
-    effect = "Allow"
+    effect  = "Allow"
     actions = ["elasticloadbalancing:AddTags"]
     resources = [
       "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*",
@@ -298,7 +306,7 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
     ]
 
     condition {
-      test     = "StringEquals"
+      test = "StringEquals"
       values = [
         "CreateTargetGroup",
         "CreateLoadBalancer"
@@ -307,7 +315,7 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
     }
     condition {
       test     = "Null"
-      values = ["false"]
+      values   = ["false"]
       variable = "aws:RequestTag/elbv2.k8s.aws/cluster"
     }
   }
@@ -332,8 +340,8 @@ data "aws_iam_policy_document" "alb_controller_role_policy" {
     ]
     resources = ["*"]
   }
-
 }
+
 
 
 data "aws_iam_policy_document" "alb_controller_role_assume_policy" {
@@ -425,4 +433,190 @@ data "aws_iam_policy_document" "lgtm_role_assume_policy" {
   }
 }
 
+# Loki S3 Role IAM assume policy
+data "aws_iam_policy_document" "loki_s3_role_assume_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "sts:AssumeRoleWithWebIdentity"
+    ]
+    principals {
+      identifiers = [
+        module.eks.oidc_provider_arn
+      ]
+      type = "Federated"
+    }
 
+    condition {
+      test     = "StringEquals"
+      values   = ["sts.amazonaws.com"]
+      variable = "${module.eks.oidc_provider}:aud"
+    }
+
+    condition {
+      test     = "StringEquals"
+      values   = ["system:serviceaccount:loki:loki"]
+      variable = "${module.eks.oidc_provider}:sub"
+    }
+  }
+}
+
+# Loki S3 Role IAM policy
+data "aws_iam_policy_document" "loki_s3_role_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+      "s3:GetBucketLocation"
+    ]
+    resources = [
+      aws_s3_bucket.loki.arn,
+      "${aws_s3_bucket.loki.arn}/*"
+    ]
+  }
+}
+
+# Mimir S3 Role IAM assume policy
+data "aws_iam_policy_document" "mimir_s3_role_assume_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "sts:AssumeRoleWithWebIdentity"
+    ]
+    principals {
+      identifiers = [
+        module.eks.oidc_provider_arn
+      ]
+      type = "Federated"
+    }
+
+
+    condition {
+      test     = "StringEquals"
+      values   = ["sts.amazonaws.com"]
+      variable = "${module.eks.oidc_provider}:aud"
+    }
+
+    condition {
+      test     = "StringEquals"
+      values   = ["system:serviceaccount:mimir:mimir"]
+      variable = "${module.eks.oidc_provider}:sub"
+    }
+  }
+}
+
+# Mimir S3 Role IAM policy
+data "aws_iam_policy_document" "mimir_s3_role_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+      "s3:GetBucketLocation"
+    ]
+    resources = [
+      aws_s3_bucket.mimir.arn,
+      "${aws_s3_bucket.mimir.arn}/*"
+    ]
+  }
+}
+
+# Tempo S3 Role IAM assume policy
+data "aws_iam_policy_document" "tempo_s3_role_assume_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "sts:AssumeRoleWithWebIdentity"
+    ]
+    principals {
+      identifiers = [
+        module.eks.oidc_provider_arn
+      ]
+      type = "Federated"
+    }
+
+    condition {
+      test     = "StringEquals"
+      values   = ["sts.amazonaws.com"]
+      variable = "${module.eks.oidc_provider}:aud"
+    }
+
+    condition {
+      test     = "StringEquals"
+      values   = ["system:serviceaccount:tempo:tempo"]
+      variable = "${module.eks.oidc_provider}:sub"
+    }
+  }
+}
+
+# Tempo S3 Role IAM policy
+data "aws_iam_policy_document" "tempo_s3_role_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+      "s3:GetBucketLocation"
+    ]
+    resources = [
+      aws_s3_bucket.tempo.arn,
+      "${aws_s3_bucket.tempo.arn}/*"
+    ]
+  }
+}
+
+# External DNS IAM assume policy
+data "aws_iam_policy_document" "external_dns_role_assume_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "sts:AssumeRoleWithWebIdentity"
+    ]
+    principals {
+      identifiers = [
+        module.eks.oidc_provider_arn
+      ]
+      type = "Federated"
+    }
+
+    condition {
+      test     = "StringEquals"
+      values   = ["sts.amazonaws.com"]
+      variable = "${module.eks.oidc_provider}:aud"
+    }
+
+    condition {
+      test     = "StringEquals"
+      values   = ["system:serviceaccount:kube-system:external-dns"]
+      variable = "${module.eks.oidc_provider}:sub"
+    }
+  }
+}
+
+# External DNS IAM policy
+data "aws_iam_policy_document" "external_dns_role_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "route53:ChangeResourceRecordSets"
+    ]
+    resources = ["arn:aws:route53:::hostedzone/*"]
+  }
+  statement {
+    effect = "Allow"
+    actions = [
+      "route53:ListHostedZones",
+      "route53:ListResourceRecordSets",
+      "route53:ListTagsForResource"
+    ]
+    resources = ["*"]
+  }
+  version = "2012-10-17"
+}
