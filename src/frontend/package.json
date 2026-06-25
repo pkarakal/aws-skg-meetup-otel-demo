@@ -11,7 +11,7 @@
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
     "@opentelemetry/api-logs": "^0.53.0",
-    "@opentelemetry/auto-instrumentations-node": "^0.50.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.75.0",
     "@opentelemetry/auto-instrumentations-web": "^0.41.0",
     "@opentelemetry/context-zone": "^1.26.0",
     "@opentelemetry/core": "^1.26.0",
